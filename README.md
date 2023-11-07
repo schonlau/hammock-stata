@@ -24,7 +24,7 @@ Hammock Plot - Stata implementation
 
 ---
 
-[Getting started](#Getting) | [Syntax](#Syntax) | [Examples](#Examples) | [Historical Context](#Historical) | [References](#References)
+[Getting started](#Getting-started) | [Syntax](#Syntax) | [Examples](#Examples) | [Historical Context](#Historical-Context) | [References](#References)
 
 ---
 
@@ -42,10 +42,10 @@ ssc install hammock, replace
 GitHub (**v1.25**):
 
 ```
-net install alluvial, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
+net install hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
 ```
 
-If you have these packages installed, you can check for updates: `ado update, update`.
+If you have the hammock package installed, you can check for updates: `ado update, update`.
 
 
 ## Syntax 
@@ -74,6 +74,7 @@ hammock varlist
 where `varlist` are is the list of variables to visualize in that order.
 
 
+## Examples
 
 ### Example: Asthma data
 
