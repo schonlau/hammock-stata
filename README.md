@@ -24,7 +24,7 @@ Hammock Plot - Stata implementation
 
 ---
 
-[Getting started](#Getting started) | [Syntax](#Syntax) | [Examples](#Examples) 
+[Getting started](#Getting) | [Syntax](#Syntax) | [Examples](#Examples) | [Historical Context](#Historical) | [References](#References)
 
 ---
 
@@ -48,7 +48,9 @@ net install alluvial, from("https://raw.githubusercontent.com/schonlau/hammock-s
 If you have these packages installed, you can check for updates: `ado update, update`.
 
 
-## The syntax is as follows:
+## Syntax 
+
+The syntax is as follows:
 
 ```
 hammock varlist [if] [in],
