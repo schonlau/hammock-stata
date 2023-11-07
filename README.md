@@ -27,11 +27,20 @@ Hammock Plot - Stata implementation
 
 ## Getting started
 
-You can install hammock from `ssc`:
+Install hammock from either `ssc` or `GitHub` (may be more recent):
+
+SSC (**v1.25**):
 
 ```shell
-ssc install hammock
+ssc install hammock, replace
 ```
+
+GitHub (**v1.25**):
+
+```
+net install alluvial, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
+```
+
 
 
 ### Example: Asthma data
