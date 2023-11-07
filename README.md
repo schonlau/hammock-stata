@@ -22,7 +22,11 @@ Hammock Plot - Stata implementation
     must be numerical. String variables should be converted to numerical variables first, e.g. using encode or
     destring.
 
+---
 
+[Getting started](#Getting started) | [Syntax](#Syntax) | [Examples](#Examples) 
+
+---
 
 
 ## Getting started
@@ -40,6 +44,32 @@ GitHub (**v1.25**):
 ```
 net install alluvial, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
 ```
+
+If you have these packages installed, you can check for updates: `ado update, update`.
+
+
+## The syntax is as follows:
+
+```
+hammock varlist [if] [in],
+               [
+                Missing BARwidth(real 1) MINBARfreq(int 1) /// 
+                hivar(str) HIVALues(numlist  missingokay) SPAce(real 0.0) ///
+                LABel labelopt(str) label_min_dist(real 3.0) ///
+                SAMEscale(varlist) ///
+                ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline *
+               ]
+```
+
+See the help file `help hammock` for details.
+
+The most basic use is as follows:
+
+```
+hammock varlist
+```
+
+where `varlist` are is the list of variables to visualize in that order.
 
 
 
