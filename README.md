@@ -160,6 +160,11 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 <!--- comment --->
 
 
+### Other implementations of the hammock plot 
+A Python implementation, 
+[hammock_plot](https://pypi.org/project/hammock-plot/). 
+There is an R implementation as part of the package `ggparallel` 
+(The R implementation does not currently allow for quantitative variables).
 
 
 ## Historical context
@@ -198,8 +203,6 @@ VanderPlas, S., Ge, Y., Unwin, A., & Hofmann, H. (2023).
 Penguins Go Parallel: a grammar of graphics framework for generalized parallel coordinate plots. 
 Journal of Computational and Graphical Statistics, 1-16. (online first)
 
-### Other implementations of the hammock plot 
-There is also a Python implementation `hammock_plot` and an R implementation as part of the package `ggparallel` (The R implementation does not currently allow for quantitative variables).
 
 
 
