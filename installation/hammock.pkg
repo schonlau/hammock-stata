@@ -1,0 +1,11 @@
+v 3
+d hammock 
+d Matthias Schonlau <schonlau@uwaterloo.ca>
+d Distribution-Date: 20231102
+
+F hammock.ado
+F hammock.sthlp
+F hammock_examples.ado
+f shakespeare_v5_stata12.dta
+
+
