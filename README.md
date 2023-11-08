@@ -161,8 +161,8 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 
 
 ### Other implementations of the hammock plot 
-A Python implementation, 
-[hammock_plot](https://pypi.org/project/hammock-plot/). 
+The Python implementation is called 
+[hammock_plot](https://github.com/TianchengY/hammock_plot). It is also downloadable via PyPi.
 There is an R implementation as part of the package `ggparallel` 
 (The R implementation does not currently allow for quantitative variables).
 
