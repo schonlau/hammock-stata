@@ -89,16 +89,79 @@ net get hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/
 
 Each observation in this data set represents one of Shakespeare's plays. 
 speaker1 and speaker2 refer to the social status of the first two speakers to speak at the beginning of the play. characters is the number of different persons in the play.
+
+### First example
 In this first example, we add labels and change the background color to a grey tone (gs5) to make the labels more readable:
 ```
 hammock  type characters speaker1 speaker2 sex1 sex2, label color(gs5)
 ```
-<img src="figures/basic.pdf" alt="Basic Hammock plot" width="600"/>
+<img src="figures/basic.png" alt="Basic Hammock plot" width="600"/>
 
-The ordering of the child-adolescent-adult variable is not in the desired order; adult should not be in the middle. We now specify a specific order, child-adolescent-adult. 
 
+### Add missing values 
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label color(gs5) missing 
+```
+<img src="figures/missing.png" alt="Hammock plot" width="600"/>
+
+### Highlight 
+Highlight two values of the `type` variable.
+The first color is the default color. 
+`red%50` and `blue%50` are highlight colors. `%50` reduces color intensity. 
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
+   hivar(type) hival(1 2 ) color(gs5 red%50 blue%50 )
+```
+<img src="figures/highlight.png" alt="Hammock plot" width="600"/>
+
+   
+### Use samescale 
+Put `speaker1` and `speaker2` on the same scale
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
+   hivar(type) hival(1) color(gs5 red) ///   
+   samescale (speaker1 speaker2)
+```
+<img src="figures/samescale.png" alt="Hammock plot" width="600"/>
+  
+### Reduce bar width 
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///  
+   samescale (speaker1 speaker2) barwidth(.1)
+```
+<img src="figures/barwidth.png" alt="Hammock plot" width="600"/>
+
+   
+### Highlight observations with speaker1 missing
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
+   hivar(speaker1) hival(.) color(gs5 red) ///
+   samescale (speaker1 speaker2)
+```
+<img src="figures/highlight_missing.png" alt="Hammock plot" width="600"/>
+
+### Reduce space for labels. 
+Labels are shown on top of the boxes. 
+To keep the labels readable,  use a lighter grey color for the boxes.
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
+   hivar(speaker1) hival(.) color(gs13 red) ///
+   samescale (speaker1 speaker2) space(-0.02)
+```
+<img src="figures/space.png" alt="Hammock plot" width="600"/>
+
+### Reduce the size of the variable names
+Variables names are shown at the bottom.
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
+   hivar(speaker1) hival(.) color(gs5 red) ///
+   samescale (speaker1 speaker2) ///
+    xlab(,labsize(vsmall))
+```
+<img src="figures/reduce_varnames.png" alt="Hammock plot" width="600"/>
 
 <!--- comment --->
+
 
 
 
