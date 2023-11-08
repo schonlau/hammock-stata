@@ -1,11 +1,9 @@
 program define hammock
-*! 1.0.0   21 February 2003 Matthias Schonlau 
-*! 1.0.1   2 March 2003: Allow variables with one value, Bug fixed when thickness was too large \ 
-*! 1.0.2   13 March 2003: width changed to right-angle-width  \
-*! 1.0.3	current working \
+*! 1.0.5	4 Nov 2008: added samescale option, fixed bug related to >8 colors
+
 	version 7 
-	syntax varlist [if] [in], [ OUTline MISSing THIckness(real 0.2) /* 
-*/ hivar(str) HIVALues(numlist) SPAce(real 0.3) LABel COnnect(str) Symbol(str)  Gap(int 5) * ]
+	syntax varlist [if] [in], [ OUTline Missing THIckness(real 0.2) /* 
+*/ hivar(str) HIVALues(numlist) SPAce(real 0.3) LABel SAMEscale COnnect(str) Symbol(str)  Gap(int 5) * ]
 	* trap -connect()-, -symbol()- 
 	foreach opt in connect symbol {
 		if "``opt''" != "" { 
@@ -17,6 +15,7 @@ program define hammock
 
 	local missing = "`missing'" != ""
 	local addlabel= "`label'" != ""
+	local same = "`samescale'" !=""
 	local fill = "`outline'" == "" /* user typed -outline- or not => fill is 0 or 1 */
 
 	local varnamewidth=`space' /*=percentage of space given to text as oppposed to the graph*/
@@ -51,6 +50,12 @@ program define hammock
 	local max=`k'
 	tokenize `varlist' 
 
+	* compute max,min values over a range of variables
+	globalminmax `varlist'
+	local globalmax=r(globalmax)
+	local globalmin=r(globalmin)
+	local globalrange=`globalmax'-`globalmin'
+
 	* create new variables that have a range between 0 and 100.
 	local i=0
 	foreach v of var `varlist' { 
@@ -64,6 +69,11 @@ program define hammock
 			local range=1	
 		}
 		local min=r(min)
+		if (`same') {
+			* override calculations with global values
+			local range=`globalrange'
+			local min=`globalmin'
+		}
 		if (`missing'==0) {
 			qui drop if `v'==.
 		}
@@ -110,12 +120,10 @@ program define hammock
 
 	* transform the data from one obs per data point to one obs per graphbox 
 	* 	using reshape and contract
-*list
+
 	* variables yvar need be listed std_y1 std_y2 std_y3 etc.   
 	qui reshape long std_y, i(`id') 
 	keep std_y `id' _j colorgroup 
-
-*list
 
 	* graphx is the variable index of std_y
 	local graphx "_j"
@@ -128,11 +136,6 @@ program define hammock
 	* graphx is important for unique identification 
 	contract std_y `std_ylag' `graphx' colorgroup
 
-
-* where there are more than one obs with the same y modify y's to avoid overplotting
-* same for ylag
-
-
 	*** preparation for graph 
       
        * make room for labels in between rectangles
@@ -144,8 +147,7 @@ program define hammock
 	* `width' refers to a percentage of `range'
 	summarize `std_ylag', meanonly 
 	local range = r(max) - r(min)
-	gen `width' =_freq / `N' * `range' * `thickness'
-	
+	gen `width' =_freq / `N' * `range' * `thickness' 
 	
  	local yrange= 100
 	local xrange= max(3,`k')-1   /* number of x variables-1==xrange */
@@ -158,13 +160,17 @@ program define hammock
 	*list `graphx' `graphxlag'  std_y `std_ylag'  `width' `width_y' 
 	*di as res "xrange `xrange' yrange `yrange' " 
 
+
+
 	/* computation of ylabmin and ylabmax */
 	/* needed to avoid that some coordinates are off the graph screen*/
 	/* since def of width changes later this is only approximate */	
 	Computeylablimit std_y `std_ylag' `width' 
 	local ylabmax=r(ylabmax)
 	local ylabmin=r(ylabmin) 
-
+ 
+      keep  `width' colorgroup `graphx' `graphxlag' std_y `std_ylag' 
+      qui reshape wide `width', j(colorgroup) i(`graphx' `graphxlag' std_y `std_ylag')
 
 	label var `graphx' " "
 	label var std_y " "
@@ -184,6 +190,7 @@ program define hammock
 
 	*preparation for graph labels
 	if `addlabel'==1 {
+		*tokenize `label_text', parse(`separator')
 		tokenize `label_text', parse(`separator')
     		forval j=1/`n_labels' { 
 			if (`label_coord'[`j',2] !=0) { /*crucial if matrix has empty rows, otherwise graph disappears*/
@@ -192,8 +199,8 @@ program define hammock
 			}
 		}
 	}
-		
-	Graphbox , xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') width(`width') colorgroup("colorgroup") fill(`fill') range(`range') 
+	
+	GraphBoxColor , xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') width(`width') fill(`fill') range(`range') 
 	gph close
 end
 
@@ -268,6 +275,27 @@ program define n_level_program, rclass
 
 end 
 /**********************************************************************************/
+program define globalminmax, rclass
+   version 7
+	* compute min and max values over all variables
+	syntax varlist
+
+	local globalmax=-9999999
+	local globalmin=9999999
+	foreach v of var `varlist' { 
+		qui sum `v'
+		if (r(max)>`globalmax') {
+			local globalmax=r(max)
+		}
+		if (r(min)<`globalmin') {
+			local globalmin=r(min)
+		}
+	}
+	return local globalmin `globalmin'
+	return local globalmax `globalmax'
+
+end 
+/**********************************************************************************/
 program define rightangle_width
    version 7
    * compute the difference of the y coordinates needed when width is taken to 
@@ -295,7 +323,7 @@ end
 * if hivar does not exist will give error message "variable `hivar' not found
 * if the same value is contained multiple times, only the last one is used and colors 
      *corresponding to earlier ones are skipped
-* if more than hivalues contains more than 8 values earlier pens are being reused
+* if hivalues contains more than 8 values earlier pens are being reused
 * if hivalues contains all values of hivar, then the default color is never used
 * hivalues does not accept labels at this point
 * if hivalues not specified will give appropriate error
@@ -308,7 +336,7 @@ program define gen_colorgroup
    local pen=1
    gen colorgroup=`pen'
    foreach v of numlist `hivalues' {
-   	local pen=`pen'+1
+   	local pen=mod(`pen',8)+1
    	qui replace colorgroup=`pen' if hivar==`v'
    }
    * list  hivar colorgroup
@@ -359,73 +387,102 @@ program define Computeylablimit, rclass
 	return local ylabmin `ylabmin'
 
 end
+
+/**********************************************************************************/
+* make the parallelogram appear solid by densely plotting parallel lines 
+* Arguments : `ylow' `ylaglow' `x1' `x2' `w_k'
+program define fillbox
+			version 7
+			args ylow ylaglow x1 x2 w_k ay range
+			* epsilon determines how densely each box is plotted
+			local epsilon = .001 * `range'
+			local N = _N
+			forval i = 1 / `N' {
+  			      * for all line segments 
+		   		local add = 0
+				if (`w_k'[`i'] !=.) { 
+   					while (`add' < `w_k'[`i']) {
+						local y5 = (`ylow'[`i'] + `ay' *  `add') 
+						local y6 = (`ylaglow'[`i'] + `ay' * `add') 
+						local startx1 = `x1'[`i'] 
+						local endx1 = `x2'[`i']
+						gph line `y5' `startx1' `y6' `endx1'
+						local add = `add' + `epsilon'
+					}
+	   			}
+			}
+end
 /**********************************************************************************/
 * draw a parallelogram (graph must exist already)
+* each obs has a unique combination of "xstart xend ystart yend". 
+*If more than one width`i' have non missing values then the box has more than one colors
 * the variables are all passed as options (strings) because using tokenize `varlist' interferes with gph
+*Parameters
 * xstart xend ystart yend 	(vectors determinoing 2 midpoints of parallelogram)
-* start and end of the line segments for the center of the parallelogram
-* width 	width of the parallelogram (width between parallel lines)
+* 		start and end of the line segments for the center of the parallelogram
+* width 	width`i' contain the width of the parallelogram for color i in 1/9
+*		The width of a box is the sum of all the color segements width`i'
 * fill 	(scalar) if fill>0 then the parallelogram is filled with lines 
 * 		to make it appear solid
-* cologroup variable that indicates the color for each line segment
+* range	scalar 
 
-
-program define Graphbox
-	version 7
-	* args xstart xend ystart yend width fill range colorgroup 
-      syntax  , xstart(str) xend(str) ystart(str) yend(str) width(str) colorgroup(str) fill(integer) range(real) 
+program define GraphBoxColor
+	version 7 
+      syntax  , xstart(str) xend(str) ystart(str) yend(str) width(str) fill(integer) range(real) 
  
-	tempvar x1 x2 y1 y2 y3 y4 
-
-	* compute the difference in y-axis width
-	tempvar width2 xdiff ydiff
-	*list `xdiff' `ydiff' `width' `width2'
- 	gen `width2'=`width'
-
+	tempvar x1 x2 yhigh ylaghigh ylaglow ylow w increment
 	graph
 
 	local ay = r(ay)
 	local by = r(by)
 	local ax = r(ax)
 	local bx = r(bx)
+	egen `w'= rsum(`width'*)
 	gen `x1' = `ax' * `xstart' + `bx'
 	gen `x2' = `ax' * `xend' + `bx'
-
-	* graph clockwise , starting at top left
-	gen `y1' = `ay' * (`ystart' + `width2' /2 ) + `by'
-	gen `y2' = `ay' * (`yend'   + `width2' /2 ) + `by'
-	gen `y3' = `ay' * (`yend'   -   `width2' / 2) + `by'
-	gen `y4' = `ay' * (`ystart' -  `width2' / 2) + `by'
+	gen `yhigh' = `ay' * (`ystart' + `w' /2 ) + `by'
+	gen `ylaghigh' = `ay' * (`yend'   + `w' /2 ) + `by'
+	gen `ylaglow' = `ay' * (`yend'   -   `w' / 2) + `by'
+	gen `ylow' = `ay' * (`ystart' -  `w' / 2) + `by'
+	gen `increment'=0
 
 	foreach k of numlist 1/9 { 
-		*display "pen `k'"
-		gph pen `k'
-		gph vpoly `y1' `x1' `y2' `x2' `y3' `x2' `y4' `x1' `y1' `x1'  if `colorgroup'==`k'
+		local w_k="`width'`k'"
+		capture confirm variable `w_k'
+		if !_rc{ /* variable w_k exists*/
+		  quietly {
+ 		  	replace `ylaglow' = `ay' * (`yend'   -   `w' / 2) + `by'
+		  	replace `ylow' = `ay' * (`ystart' -  `w' / 2) + `by'
+		  }
+		  local k1=`k'-1
 
-		if `fill' {
-			* increment determines how densely each box is plotted
-			local increment = .001 * `range'
-			local N = _N
+		  quietly {
+		  	replace `ylaglow' = `ylaglow' + `increment' * `ay' 
+		  	replace `ylow' = `ylow'+ `increment' *`ay'
+		  	replace `ylaglow'=. if `w_k'==.
+		  	replace `ylow'=. if `w_k'==.
+		 	replace `ylaghigh' = `ylaglow' + `ay' * `w_k'
+		  	replace `yhigh' = `ylow' + `ay' * `w_k'
+		  }
+		  gph pen `k'
+		  gph vpoly `yhigh' `x1' `ylaghigh' `x2' `ylaglow' `x2' `ylow' `x1' `yhigh' `x1' 
+ 		  * list `yhigh' `ylaghigh' `ylaglow' `ylow' `w_k' `increment'
+		  
+		  if `fill' {
+			fillbox `ylow' `ylaglow' `x1' `x2' `w_k' `ay' `range' 
+		  }
 
-			forval i = 1 / `N' {
-			   /* for all line segments */
-			   if (`colorgroup'[`i']==`k') {
-				/* if the line segment is currently highlighted */
-		   		local add = 0
-   				while (`add' < `width2'[`i']) {
-					local y5 = /* 
-				*/ `ay' * (`ystart'[`i'] - `width2'[`i'] / 2 + `add') + `by'
-				local y6 = /* 
-				*/ `ay' * (`yend'[`i'] - `width2'[`i'] / 2 + `add') + `by'
-					local startx1 = `x1'[`i'] 
-					local endx1 = `x2'[`i']
-					gph line `y5' `startx1' `y6' `endx1'
-					local add = `add' + `increment'
-	   			}
-			   }
-			}
+		  qui replace `increment' = `increment'+ `w_k' if `w_k'!=.   /* for the next round*/
 		}
 	}
 	
 end 
-
+/*
+Version history:
+* ! 1.0.0   21 February 2003 Matthias Schonlau 
+* ! 1.0.1   2 March 2003: Allow variables with one value, Bug fixed when thickness was too large \ 
+* ! 1.0.2   13 March 2003: width changed to right-angle-width  \
+* ! 1.0.3   20 Nov 2003: hivar and hival options implemented \
+* ! 1.0.4	no changes \
+* ! 1.0.5	4 Nov 2008: added samescale option, fixed bug related to >8 colors
+*/
