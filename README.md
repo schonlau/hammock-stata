@@ -181,7 +181,7 @@ Penguins Go Parallel: a grammar of graphics framework for generalized parallel c
 Journal of Computational and Graphical Statistics, 1-16. (online first)
 
 ### Other implementations of the hammock plot 
-There is also a Python implementation `hammock_plot` and an R implementation as part of the package `ggparallel`.
+There is also a Python implementation `hammock_plot` and an R implementation as part of the package `ggparallel` (The R implementation does not currently allow for quantitative variables).
 
 
 
