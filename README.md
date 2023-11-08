@@ -1,4 +1,4 @@
-# stata-hammock
+# hammock-stata
 Hammock Plot - Stata implementation
 
 # Hammock plot
@@ -8,15 +8,14 @@ Hammock Plot - Stata implementation
 
     The hammock plot draws a graph to visualize categorical or mixed categorical / continuous data.
     Variables are lined up parallel to the vertical axis. Categories within a variable are spread out along a
-    vertical line. Categories of adjacent variables are connected by boxes. (The boxes are parallelograms; we
+    vertical line. Categories of adjacent variables are connected by boxes. (The boxes are rectangles or parallelograms; we
     use boxes for brevity). The "width" of a box is proportional to the number of observations that correspond
     to that box (i.e. have the same values/categories for the two variables). The "width" of a box refers to the
     distance between the longer set of parallel lines rather than the vertical distance.
 
     If the boxes degenerate to a single line, and no labels or missing values are used the hammock plot
     corresponds to a parallel coordinate plot. Boxes degenerate into a single line if barwidth is so small that
-    the boxes for categorical variables appear to be a single line. For continuous variables boxes will usually
-    appear to be a single line because each category typically only contains one observation.
+    the boxes for categorical variables appear to be a single line. 
 
     The order of variables in varlist determines the order of variables in the graph.  All variables in varlist
     must be numerical. String variables should be converted to numerical variables first, e.g. using encode or
