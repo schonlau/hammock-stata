@@ -1,8 +1,5 @@
-# hammock-stata
-Hammock Plot - Stata implementation
-
-# Hammock plot
-
+# hammock
+Stata implementation of the hammock plot
 
 ## Description
 
@@ -87,7 +84,7 @@ net get hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/
 ```
 
 Each observation in this data set represents one of Shakespeare's plays. 
-speaker1 and speaker2 refer to the social status of the first two speakers to speak at the beginning of the play. characters is the number of different persons in the play.
+"speaker1" and "speaker2" refer to the social status of the first two speakers to speak at the beginning of the play. "characters" is the number of different persons in the play.
 
 ### First example
 In this first example, we add labels and change the background color to a grey tone (gs5) to make the labels more readable:
@@ -104,7 +101,7 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label color(gs5) missing
 <img src="figures/missing.png" alt="Hammock plot" width="600"/>
 
 ### Highlight 
-Highlight two values of the `type` variable.
+Highlight two values of the "type" variable.
 The first color is the default color. 
 `red%50` and `blue%50` are highlight colors. `%50` reduces color intensity. 
 ```
@@ -115,7 +112,7 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 
    
 ### Use samescale 
-Put `speaker1` and `speaker2` on the same scale
+Put "speaker1" and "speaker2" on the same scale
 ```
 hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
    hivar(type) hival(1) color(gs5 red) ///   
@@ -131,7 +128,8 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 <img src="figures/barwidth.png" alt="Hammock plot" width="600"/>
 
    
-### Highlight observations with speaker1 missing
+### Highlight missing values
+Highlight observations with "speaker1" missing
 ```
 hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
    hivar(speaker1) hival(.) color(gs5 red) ///
