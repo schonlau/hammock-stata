@@ -81,10 +81,11 @@ set scheme s1color
 Load the Shakespeare data set to your current directory:
 ```stata
 net get hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
+use shakespeare_v5_stata12.dta
 ```
-
 Each observation in this data set represents one of Shakespeare's plays. 
-"speaker1" and "speaker2" refer to the social status of the first two speakers to speak at the beginning of the play. "characters" is the number of different persons in the play.
+"speaker1" and "speaker2" refer to the social status of the first two speakers to speak at the beginning of the play. 
+"characters" is the number of different persons in the play.
 
 ### First example
 In this first example, we add labels and change the background color to a grey tone (gs5) to make the labels more readable:
