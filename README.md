@@ -93,54 +93,12 @@ In this first example, we add labels and change the background color to a grey t
 ```
 hammock  type characters speaker1 speaker2 sex1 sex2, label color(gs5)
 ```
-<img src="figures/grey.pdf" alt="Basic Hammock plot" width="600"/>
+<img src="figures/basic.pdf" alt="Basic Hammock plot" width="600"/>
 
 The ordering of the child-adolescent-adult variable is not in the desired order; adult should not be in the middle. We now specify a specific order, child-adolescent-adult. 
 
-```python
-var = ["hospitalizations","group","gender","comorbidities"]
-group_dict= {1: "child", 2: "adolescent",3: "adult"}
-value_order = {"group": group_dict}
-hammock = hammock_plot.Hammock(data_df = df)
-ax = hammock.plot(var=var, value_order=value_order )
-```
 
-<!--- to restrict image size, I am using a an html command, rather than the standard ![](image.png) --->
-<!---    ![Hammock plot ](image/asthma1.png)   --->
-<img src="image/asthma_value_order.png" alt="Hammock plot" width="600"/>
-
-We highlight observations with comorbidities=0  in red:
-
-```python
-ax = hammock.plot(var=var, value_order=value_order ,hi_var="comorbidities", hi_value=[0], color=["red"])
-```
-
-<!---   ![Hammock plot with highlighting](image/asthma_highlighting.png)    --->
-<img src="image/asthma_highlighting.png" alt="Hammock plot with highlighting" width="600"/>
-
-
-### Example Satisfaction scales for the diabetes data
-
-We import the diabetes dataset:
-
-```python
-import hammock_plot
-import pandas as pd
-df = pd.read_csv('../examples/diabetes_outlier/diabetes_for_python.csv')
-```
-
-The three variables represent different ordinal scales for satisfaction. We are checking for missing values: 
-```python
-var = ["sataces","satcomm","satrate"]
-hammock = hammock_plot.Hammock(data_df = df)
-ax = hammock.plot(var=var,  default_color="blue", missing=True) 
-```
-
-<img src="image/diabetes.png" alt="Hammock plot for the Diabetes Data" width="600"/>
-
-The missing value category is shown at the bottom for each variable. We find missing values for all 3 variables, but fewest for the last one. We also see a phenomenon called "top coding", where 
-satisfied respondents simply choose the highest value.
-
+<!--- comment --->
 
 
 
