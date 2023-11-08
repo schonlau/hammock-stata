@@ -76,23 +76,24 @@ where `varlist` are is the list of variables to visualize in that order.
 
 ## Examples
 
-### Example: Asthma data
+You may want to change the scheme, the overall look of the graph. I prefer a plain white look:
 
-We import the diabetes dataset:
-
-```python
-import hammock_plot
-import pandas as pd
-df = pd.read_csv('../examples/asthma/asth_all3_for_python.csv')
+```
+set scheme s1color
 ```
 
-Minimal example of a hammock plot: 
-```python
-var = ["hospitalizations","group","gender","comorbidities"]
-hammock = hammock_plot.Hammock(data_df = df)
-ax = hammock.plot(var=var)
+Load the Shakespeare data set to your current directory:
+```stata
+net get hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
 ```
-<img src="image/asthma_minimal.png" alt="Minimal example for a Hammock plot" width="600"/>
+
+Each observation in this data set represents one of Shakespeare's plays. 
+speaker1 and speaker2 refer to the social status of the first two speakers to speak at the beginning of the play. characters is the number of different persons in the play.
+In this first example, we add labels and change the background color to a grey tone (gs5) to make the labels more readable:
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label color(gs5)
+```
+<img src="figures/grey.pdf" alt="Basic Hammock plot" width="600"/>
 
 The ordering of the child-adolescent-adult variable is not in the desired order; adult should not be in the middle. We now specify a specific order, child-adolescent-adult. 
 
