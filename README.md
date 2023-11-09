@@ -81,10 +81,11 @@ set scheme s1color
 Load the Shakespeare data set to your current directory:
 ```stata
 net get hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
+use shakespeare_v5_stata12.dta
 ```
-
 Each observation in this data set represents one of Shakespeare's plays. 
-"speaker1" and "speaker2" refer to the social status of the first two speakers to speak at the beginning of the play. "characters" is the number of different persons in the play.
+"speaker1" and "speaker2" refer to the social status of the first two speakers to speak at the beginning of the play. 
+"characters" is the number of different persons in the play.
 
 ### First example
 In this first example, we add labels and change the background color to a grey tone (gs5) to make the labels more readable:
@@ -160,6 +161,11 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 <!--- comment --->
 
 
+### Other implementations of the hammock plot 
+The Python implementation is called 
+[hammock_plot](https://github.com/TianchengY/hammock_plot). It is also downloadable via PyPi.
+There is an R implementation as part of the package `ggparallel` 
+(The R implementation does not currently allow for quantitative variables).
 
 
 ## Historical context
@@ -198,8 +204,6 @@ VanderPlas, S., Ge, Y., Unwin, A., & Hofmann, H. (2023).
 Penguins Go Parallel: a grammar of graphics framework for generalized parallel coordinate plots. 
 Journal of Computational and Graphical Statistics, 1-16. (online first)
 
-### Other implementations of the hammock plot 
-There is also a Python implementation `hammock_plot` and an R implementation as part of the package `ggparallel` (The R implementation does not currently allow for quantitative variables).
 
 
 
