@@ -69,6 +69,20 @@ will usually appear to be a single line because each category typically
 All variables in {it:varlist} must be numerical. String variables should be 
 converted to numerical variables first, e.g. using {cmd: encode} or {cmd: destring}. 
 
+{title:Installation}
+{phang} 
+Installation via the {browse "https://github.com/schonlau/hammock-stata":Github repository}.  
+The Github version may be more recent than the version on SSC.
+
+{phang2} 
+{cmd: . net install hammock, from "https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/" replace }
+
+{phang} 
+Installation via SSC: 
+
+{phang2}
+{cmd:. net install hammock, replace} 
+
 
 {title:Options}
 {dlgtab:Main}
@@ -354,7 +368,6 @@ Available from : {browse "http://www.schonlau.net/publication/03jsm_hammockplot.
 
 {title:Also see}
 
-{p 0 19}Stata Journal:  {hi:[SJ] clustergram} {p_end}
-{p 0 19}Stata Bulletin: {hi:[STB] parcoord}{p_end}
+{hi:Visualizing cluster assignments:} {helpb clustergram} 
 
 
