@@ -1,8 +1,8 @@
 program define hammock
-*! 1.2.5   Oct 10, 2023: added option outline 
+*! 1.2.6   Nov 10, 2023: allow hivar to be a string variable 
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
-		hivar(str) HIVALues(numlist  missingokay) SPAce(real 0.0) ///
+		hivar(str) HIVALues(string) SPAce(real 0.0) ///
 		LABel labelopt(str) label_min_dist(real 3.0) ///
 		SAMEscale(varlist) ///
 		ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline * ]
@@ -74,7 +74,7 @@ program define hammock
 
 	/*generate colorgroup variable for highlighting*/
 	/*later, missval replaces "." , so gen_colorgroup needs to go before*/
-    if "`hivar'"!="" 	qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues') 
+    if "`hivar'"!=""    qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues')  
 	else 				qui gen colorgroup=1
 	
 	* transform variables' range to be between 0 and 100, also adjust matrix w label coordinates
@@ -372,7 +372,22 @@ program define compute_vertical_width
 
 end 
 /**********************************************************************************/
-* generate the colorgroup variable
+* distinguish between colorgroup for strings and color group numeric
+* string variables allowed only when highlighting a variable not in varlist
+program define gen_colorgroup
+   version 16
+   syntax ,  hivar(varname) HIVALues(string)
+   
+		capture confirm numeric variable `hivar'
+        if !_rc {
+			qui gen_colorgroup_num , hivar(`hivar') hivalues(`hivalues')  //numeric variable
+        }
+        else {
+			gen_colorgroup_str , hivar(`hivar') hivalues(`hivalues')  //string variable
+        } 
+end
+/**********************************************************************************/
+* generate the colorgroup variable,numeric
 * all values not mentioned in hivalues get color=1
 * colors are generated in sequence of hivalues
 * if value in hivalues not contained in hivar, then the corresponding color is just skipped
@@ -383,7 +398,7 @@ end
 * if hivalues contains all values of hivar, then the default color is never used
 * hivalues does not accept labels at this point
 * if hivalues not specified will give appropriate error
-program define gen_colorgroup
+program define gen_colorgroup_num
    version 7
    syntax  ,  hivar(varname) HIVALues(numlist missingokay) 
 
@@ -397,6 +412,27 @@ program define gen_colorgroup
 		}
 	}
 	* list  `hivar' colorgroup
+
+end
+/**********************************************************************************/
+* generate the colorgroup variable, string
+* same as for numeric; except the string comparison instead of ==  , and no missing values, and loop over i
+program define gen_colorgroup_str
+   version 16
+   syntax  ,  hivar(varname) HIVALues(string) 
+
+	local pen=1
+	qui gen colorgroup=`pen'
+	foreach v in `hivalues' {
+		local i=1
+di as red "v: `v'"
+		local pen=mod(`pen',8)+1
+		while (`i'<=_N) {
+			qui replace colorgroup=`pen' in `i' if  ustrregexm(`hivar'[`i'],"`v'")    // `hivar'==`v' 
+			local i=`i' + 1
+		}
+	}
+    *list  `hivar' colorgroup
 
 end
 /**********************************************************************************/
@@ -1017,7 +1053,7 @@ end
 // colorlist should not be smaller than number of values in hivalues + 1 (default color)
 program define check_sufficient_colors
 	version 16
-	syntax,  [ hivar(str) HIVALues(numlist missingokay)  COLorlist(str) ] 
+	syntax,  [ hivar(str) HIVALues(string)  COLorlist(str) ] 
 
 	if ("`hivar'"!="" & "`colorlist'"!="") {
 		local hicount: word count `hivalues'
@@ -1139,3 +1175,4 @@ end
 //*! 1.2.3    Apr 12, 2023: Added warning if label value contains only white space
 //*! 1.2.4   May 24, 2023: label_min_dist option
 //*! 1.2.5   Oct 10, 2023: added option outline 
+//*! 1.2.6   Nov 10, 2023: allow hivar to be a string variable 
