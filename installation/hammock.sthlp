@@ -26,7 +26,7 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 
 {syntab :Highlighting}
 {synopt :{opt hivar:iable(varname)}} Name of variable to highlight {p_end}
-{synopt :{opt hival:ues(numlist)}}  List of values of {it:hivariable} to highlight {p_end}
+{synopt :{opt hival:ues(string)}}  List of values of {it:hivariable} to highlight {p_end}
 {synopt :{opt col:orlist(str)}} Default color and colors for highlighting {p_end}
 
 {syntab :Manipulating Spacing and Layout}
