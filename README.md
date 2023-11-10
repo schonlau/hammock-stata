@@ -35,7 +35,7 @@ SSC (**v1.25**):
 ssc install hammock, replace
 ```
 
-GitHub (**v1.25**):
+GitHub (**v1.26**):
 
 ```
 net install hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
@@ -52,7 +52,7 @@ The syntax is as follows:
 hammock varlist [if] [in],
                [
                 Missing BARwidth(real 1) MINBARfreq(int 1) /// 
-                hivar(str) HIVALues(numlist  missingokay) SPAce(real 0.0) ///
+                hivar(str) HIVALues(string) SPAce(real 0.0) ///
                 LABel labelopt(str) label_min_dist(real 3.0) ///
                 SAMEscale(varlist) ///
                 ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline *
@@ -88,16 +88,26 @@ Each observation in this data set represents one of Shakespeare's plays.
 "characters" is the number of different persons in the play.
 
 ### First example
-In this first example, we add labels and change the background color to a grey tone (gs5) to make the labels more readable:
+In this first example, we add labels and change the background color to blue (at 50% intensity):
 ```
-hammock  type characters speaker1 speaker2 sex1 sex2, label color(gs5)
+hammock  type characters speaker1 speaker2 sex1 sex2, label color(blue%50)
 ```
 <img src="figures/basic.png" alt="Basic Hammock plot" width="600"/>
 
+### convert string variable 
+To demonstrate the conversion, we first create a string variable. 
+Then we convert the string variable to numeric using `encode`.  
+```
+gen gender1="male"  // for demonstration, create string variable 
+replace gender1="female" if sex1==1 // for demonstration, create string variable 
+encode gender1 , gen(gender1_num)
+hammock  type characters speaker1 speaker2 gender1_num sex2, label color(blue%50) 
+```
+<img src="figures/encode.png" alt="Basic Hammock plot" width="600"/>
 
 ### Add missing values 
 ```
-hammock  type characters speaker1 speaker2 sex1 sex2, label color(gs5) missing 
+hammock  type characters speaker1 speaker2 sex1 sex2, label color(blue%50) missing 
 ```
 <img src="figures/missing.png" alt="Hammock plot" width="600"/>
 
@@ -111,6 +121,12 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 ```
 <img src="figures/highlight.png" alt="Hammock plot" width="600"/>
 
+### highlight a single observation 
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
+   hivar(play_name) hival(Macbeth) color(gs5 red%50 blue%50 )
+```
+<img src="figures/highlight_macbeth.png" alt="Hammock plot" width="600"/>
    
 ### Use samescale 
 Put "speaker1" and "speaker2" on the same scale
