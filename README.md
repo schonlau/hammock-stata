@@ -122,6 +122,7 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 <img src="figures/highlight.png" alt="Hammock plot" width="600"/>
 
 ### highlight a single observation 
+The highlighting variable is usually numeric, but can also be a string (so as long as `hivar` is not also used in the variable list  `varlist`).
 ```
 hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
    hivar(play_name) hival(Macbeth) color(gs5 red%50 blue%50 )
