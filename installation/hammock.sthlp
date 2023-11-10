@@ -109,6 +109,7 @@ can be used to specify which individual categories to highlight.
 A value that is highlighted appears in a different color and observations in this 
 category can be traced through the entire graph. 
 {it:hivariable } does not have to be part of {it:varlist}.
+If so, it can also be string variable.
 
 {phang}
 {opt hivalues}
@@ -118,6 +119,11 @@ All values except 4 and 9 use the default color, the first color in {it: colorli
 Values 4 and 9 are assigned the second and third color in {it: colorlist}, respectively. 
 If more than 8 values are specified, colors are recycled.
 {it: hivalues} is ignored if {it: hivariable} is not specified. 
+
+{pmore}
+If {it:hivariable} is a string variable, {it:hivalues} may specify strings or subsets of strings. 
+For example, for the Shakespeare data set, {it:hivariable(play_name)} {it:hivalues(Richard Mac)} 
+highlights all plays that contain "Richard" in one color and those that contain "Mac" in another color. 
 
 {phang}
 {opt colorlist} specifies a list of colors to be used.  
@@ -159,7 +165,7 @@ Space can be removed by using negative values as in {it:space(-0.1)}.
  By default, {it:minbarfreq} equals 1 observation.  
  In other words, by default this option has no effect.
  
- {pmore}
+{pmore}
  During highlighting, bars may consist of multiple segments with different colors. 
  In that case, {it:minbarfreq} is applied to each color segment separately.
   
