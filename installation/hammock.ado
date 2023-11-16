@@ -1,5 +1,5 @@
 program define hammock
-*! 1.2.6   Nov 10, 2023: allow hivar to be a string variable 
+*! 1.2.8   Nov 16, 2023: fixed bug related to "labelopt"
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -171,7 +171,7 @@ program define hammock
 	
 	if `addlabel'==1 {
 		compute_addlabeltext,  mat_label_coord(`label_coord') missing("`missing'") ///
-			label_text("`label_text'") separator(`separator')
+			label_text("`label_text'") separator(`separator') labelopt(`"`labelopt'"')
 		local addlabeltext=r(addlabeltext)  
 	}
 	else  local addlabeltext=""
@@ -229,7 +229,7 @@ end
 // label_text: Shakespeare example: label_text="adult@adolescent@child@0@1@2@3@4@5@20@0@1@2@3@4@5@6@7@female@male@"
 program  compute_addlabeltext, rclass
 	version 16
-	syntax , mat_label_coord(str) missing(str) label_text(str) separator(str)
+	syntax , mat_label_coord(str) missing(str) label_text(str) separator(str) [ labelopt(str) ]
 
 		* the labels are overwriting the plot. Plot before the graphboxes 
 		local n_labels = rowsof(`mat_label_coord')
@@ -246,8 +246,7 @@ program  compute_addlabeltext, rclass
 		}
 		if (`missing'==1) local addlabeltext= `"`addlabeltext' 0 1 "missing" "'
 		* add label options 
-		local addlabeltext= `"`addlabeltext',`labelopt')"'
-	
+		local addlabeltext= `"`addlabeltext',`labelopt')"'	
 		return local addlabeltext=`"`addlabeltext'"' // does not allow empty "" returns
 end 
 /**********************************************************************************/
@@ -425,7 +424,6 @@ program define gen_colorgroup_str
 	qui gen colorgroup=`pen'
 	foreach v in `hivalues' {
 		local i=1
-di as red "v: `v'"
 		local pen=mod(`pen',8)+1
 		while (`i'<=_N) {
 			qui replace colorgroup=`pen' in `i' if  ustrregexm(`hivar'[`i'],"`v'")    // `hivar'==`v' 
@@ -1176,3 +1174,5 @@ end
 //*! 1.2.4   May 24, 2023: label_min_dist option
 //*! 1.2.5   Oct 10, 2023: added option outline 
 //*! 1.2.6   Nov 10, 2023: allow hivar to be a string variable 
+//*! 1.2.7   Nov 13, 2023: remove display statement leftover from debugging
+//*! 1.2.8   Nov 16, 2023: fixed bug related to "labelopt" 
