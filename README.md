@@ -165,13 +165,13 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 ```
 <img src="figures/space.png" alt="Hammock plot" width="600"/>
 
-### Reduce the size of the variable names
-Variables names are shown at the bottom.
+### Reduce the size of the variable and label names 
+Variables names are shown at the bottom. Label names are reduced in option `labelopt'.
 ```
 hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
-   hivar(speaker1) hival(.) color(gs5 red) ///
+   hivar(speaker1) hival(.) color(stone*.4 red) ///
    samescale (speaker1 speaker2) ///
-    xlab(,labsize(vsmall))
+    xlab(,labsize(vsmall)) labelopt(size(vsmall))
 ```
 <img src="figures/reduce_varnames.png" alt="Hammock plot" width="600"/>
 
