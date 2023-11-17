@@ -121,6 +121,14 @@ hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
 ```
 <img src="figures/highlight.png" alt="Hammock plot" width="600"/>
 
+### Specify colors with RGB values
+Note the compound quotes in the color list.
+```
+hammock  type characters speaker1 speaker2 sex1 sex2, label  missing ///
+   hivar(type) hival(1 2 ) color(`"gs5 "178 243 243"  "138 43 226" "')
+```
+<img src="figures/highlight_rgb.png" alt="Hammock plot" width="600"/>
+
 ### highlight a single observation 
 The highlighting variable is usually numeric, but can also be a string (so as long as `hivar` is not also used in the variable list  `varlist`).
 ```
