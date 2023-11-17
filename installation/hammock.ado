@@ -1,5 +1,5 @@
 program define hammock
-*! 1.2.8   Nov 16, 2023: fixed bug related to "labelopt"
+*! 1.2.9   Nov 17, 2023: colorlist now allows RGB values
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -22,7 +22,7 @@ program define hammock
 		local varnamewidth=0.3   // if addlabel, change the default space to 0.3
 	}
 
-	check_sufficient_colors ,  hivar("`hivar'") hivalues("`hivalues'") colorlist("`colorlist'") 
+	check_sufficient_colors ,  hivar("`hivar'") hivalues("`hivalues'") colorlist(`"`colorlist'"') 
 	if ("`colorlist'"=="")	 local colorlist="black red  blue teal  yellow sand maroon orange olive magenta"
 
 
@@ -214,7 +214,7 @@ program define hammock
 	GraphBoxColor , xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') ///
 	     width(`width')  ylabmax(`ylabmax') ylabmin(`ylabmin') ///
          aspectratio(`aspectratio') ar_x(`ar_x') xrange(`xrange') yrange(`yrange') ///
-		 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist("`colorlist'") ///
+		 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist(`"`colorlist'"') ///
 		 shape("`shape'") outline(`outline') ///
 		 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"')
 
@@ -590,7 +590,8 @@ program define GraphBoxColor
 
 			
 			// translate k into a color 
-			local color= word("`colorlist'",`k') 
+			tokenize `"`colorlist'"'
+			local color= "``k''"  // need double single quotes
 
 			// for a given color k, plot one parallelogram at a time.			
 			foreach i of  numlist 1/`N' {
@@ -621,18 +622,18 @@ program define GraphBoxColor
 						// for entire hammock.ado speed advantage using this routine is 1%-6%
 						plot_parallelogram `hi`i'`k'' `lo`i'`k'' `x`i'`k'', ///
 							yhigh(`yhigh1') ylaghigh(`ylaghigh1') x1(`xlow1') x2(`xlaglow1') ///
-							ylow(`ylow1')  ylaglow(`ylaglow1') color(`color') `no_outline'
+							ylow(`ylow1')  ylaglow(`ylaglow1') color("`color'") `no_outline'
 					}
 					else {						
 						// works for both general quadrangles and for parallelogram as a special case
-						plot_quadrangle `hi`i'`k'' `lo`i'`k'' `x`i'`k'', color(`color') `no_outline' ///
+						plot_quadrangle `hi`i'`k'' `lo`i'`k'' `x`i'`k'', color("`color'") `no_outline' ///
 							xhigh(`xhigh1') yhigh(`yhigh1') ///	     
 							xlow(`xlow1') ylow(`ylow1') ///
 							xlaghigh(`xlaghigh1') ylaghigh(`ylaghigh1') ///
 							xlaglow(`xlaglow1') ylaglow(`ylaglow1') 	
 					}
 					local temp = r(addplot)
-					assert "`temp'"!=""
+					assert `"`temp'"'!=""
 					// caution : addplot might get tooo long
 					if (`"`addplot'"'=="")  local addplot  `"`temp'"'
 					else 					local addplot  `"`addplot' || `temp'"'
@@ -1055,7 +1056,14 @@ program define check_sufficient_colors
 
 	if ("`hivar'"!="" & "`colorlist'"!="") {
 		local hicount: word count `hivalues'
-		local colcount: word count `colorlist'
+		
+		// colorlist may contain strings, so "word count" does not work
+		local colcount=0
+		tokenize `"`colorlist'"'
+		while "`*'" ~= "" {
+			macro shift
+			local colcount= `colcount' +1 
+		}
 		if (`colcount'<`hicount'+1) {
 			di as error " There are not enough colors for highlighting. "
 			di as error "(The first color is the default color and is not used for highlighting.)"
@@ -1176,3 +1184,4 @@ end
 //*! 1.2.6   Nov 10, 2023: allow hivar to be a string variable 
 //*! 1.2.7   Nov 13, 2023: remove display statement leftover from debugging
 //*! 1.2.8   Nov 16, 2023: fixed bug related to "labelopt" 
+//*! 1.2.9   Nov 17, 2023: colorlist now allows RGB values
