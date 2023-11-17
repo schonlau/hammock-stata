@@ -129,8 +129,10 @@ highlights all plays that contain "Richard" in one color and those that contain 
 {opt colorlist} specifies a list of colors to be used.  
 The first color in the list is the default color, the remainder is used for highlighting. 
 If unspecified, the color list is  
-"black red  blue teal  yellow sand maroon orange olive magenta".
+{it:colorlist("black red  blue teal  yellow sand maroon orange olive magenta")}.
 Color names are explained in {it:{help colorstyle}}.
+Colors defined by their RGB or CMYK values can be specified using compound double quotes: 
+{it:colorlist(`" "178 243 243"  yellow  "0 0 255 0"  blue "')}. 
 The color list should not be shorter than the number of values to be highlighted plus one (default color).
 
 {dlgtab:Spacing and Layout}
