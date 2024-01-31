@@ -1,5 +1,5 @@
 program define hammock
-*! 1.2.9   Nov 17, 2023: colorlist now allows RGB values
+*! 1.3.0   Jan 26, 2024: removed duplicate code,improved documentation compute_vertical_width
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -8,7 +8,7 @@ program define hammock
 		ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline * ]
 
 	confirm numeric variable `varlist'
-	
+
 	local missing = "`missing'" != ""
 	local addlabel= "`label'" != ""
 	local same = "`samescale'" !=""
@@ -74,7 +74,7 @@ program define hammock
 
 	/*generate colorgroup variable for highlighting*/
 	/*later, missval replaces "." , so gen_colorgroup needs to go before*/
-    if "`hivar'"!=""    qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues')  
+	if "`hivar'"!=""    qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues')  
 	else 				qui gen colorgroup=1
 	
 	* transform variables' range to be between 0 and 100, also adjust matrix w label coordinates
@@ -88,9 +88,9 @@ program define hammock
 	local i=1
 	foreach v of var `varlist' {
 		if mod(`i', 2)  local xl "`xl' `i'" 
-      	else 			local tl "`tl' `i'" 
-      	local xlabel "`xlabel' `i' ``i''"
-      	local i = `i' + 1
+		else 			local tl "`tl' `i'" 
+		local xlabel "`xlabel' `i' ``i''"
+		local i = `i' + 1
    	}
    	local xl = substr("`xl'", 2, .)
    	local xlab_num "`xl'"
@@ -123,7 +123,7 @@ program define hammock
 	
 	*** preparation for graph 
       
-    * make room for labels in between rectangles
+	* make room for labels in between rectangles
 	qui gen `graphxlag'= `graphx'+ (1-`varnamewidth'/2)
 	if (`varnamewidth'>0)	{ 
 		qui replace `graphx'= `graphx' + `varnamewidth'/2 
@@ -136,7 +136,7 @@ program define hammock
 	qui gen `width' =_freq / `N' * `range' * 0.2* `barwidth' 
 	
 	* modify width; compute graphxlag
- 	local yrange= 100
+	local yrange= 100
 	local xrange= `k'-1   /* number of x variables-1==xrange */
 		
 	// for parallelograms, change rightangle width to vertical width
@@ -151,11 +151,11 @@ program define hammock
 		*di as res "xrange `xrange' yrange `yrange' " 
 	}
  
-    //reshape: previously each obs represented unique (box,color) combination
+	//reshape: previously each obs represented unique (box,color) combination
 	//now each obs represents a unique box (with multiple colors). 
 	// color variables contain the width of the color and are missing otherwise
-    keep  `width' colorgroup `graphx' `graphxlag' std_y `std_ylag' 
-    qui reshape wide `width', j(colorgroup) i(`graphx' `graphxlag' std_y `std_ylag')
+	keep  `width' colorgroup `graphx' `graphxlag' std_y `std_ylag' 
+	qui reshape wide `width', j(colorgroup) i(`graphx' `graphxlag' std_y `std_ylag')
 
 	
 	// in trivial cases there may be fewer than 4 boxes. 
@@ -178,28 +178,12 @@ program define hammock
 
 
 
-
-
 	/* computation of ylabmin and ylabmax */
 	/* needed to avoid that some coordinates are off the graph screen*/
 	/* since def of width changes later this is only approximate */
 	// accumulate the width for different colors
 	tempvar width_for_maxmin
-    qui egen `width_for_maxmin' = rsum(`width'*)
-	Computeylablimit std_y `std_ylag' `width_for_maxmin'
-	local ylabmax=r(ylabmax)
-	local ylabmin=r(ylabmin)
-	if (`missing') {
-	    local ylabmin = `ylabmin' - `rangeexpansion' * `yrange'
-	}
-
-
-	/* computation of ylabmin and ylabmax */
-	/* needed to avoid that some coordinates are off the graph screen*/
-	/* since def of width changes later this is only approximate */
-	// accumulate the width for different colors
-	tempvar width_for_maxmin
-    qui egen `width_for_maxmin' = rsum(`width'*)
+	qui egen `width_for_maxmin' = rsum(`width'*)
 	Computeylablimit std_y `std_ylag' `width_for_maxmin'
 	local ylabmax=r(ylabmax)
 	local ylabmin=r(ylabmin)
@@ -212,8 +196,8 @@ program define hammock
 	// there is one `width' variable for each color: 
 	// `width' is the stub of the variable names; `width'i contains the width of color i
 	GraphBoxColor , xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') ///
-	     width(`width')  ylabmax(`ylabmax') ylabmin(`ylabmin') ///
-         aspectratio(`aspectratio') ar_x(`ar_x') xrange(`xrange') yrange(`yrange') ///
+		width(`width')  ylabmax(`ylabmax') ylabmin(`ylabmin') ///
+		aspectratio(`aspectratio') ar_x(`ar_x') xrange(`xrange') yrange(`yrange') ///
 		 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist(`"`colorlist'"') ///
 		 shape("`shape'") outline(`outline') ///
 		 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"')
@@ -278,7 +262,7 @@ program define list_labels, rclass
 	local g : value label `v'
 	forval  j = 1/`n_one_ylabel' {
 		local w=`one_ylabel'[`j',1]
-      	matrix `label_coord'[`offset'+`j',2]=`i'
+		matrix `label_coord'[`offset'+`j',2]=`i'
 		matrix `label_coord'[`offset'+`j',1]=`w'
 		if (`j'==1) {  
 			* This marks when a new variable starts. Needed in decide_labels_too_close
@@ -299,9 +283,9 @@ program define list_labels, rclass
 		}
       }
       local offset=`offset'+`n_one_ylabel'
-   }
-   return matrix label_coord `label_coord'
-   return local label_text `"`label_text'"' 
+	}
+	return matrix label_coord `label_coord'
+	return local label_text `"`label_text'"' 
 
 end 
 
@@ -318,8 +302,8 @@ program define n_level_program, rclass
 		qui tab `v'
 		  local temp= r(r)
 		local n_level=`n_level' + `temp'
-   }
-   if (`n_level'>40) {
+	}
+	if (`n_level'>40) {
 		if (`n_level'<=800) {
 			set matsize `n_level'
 		}
@@ -327,13 +311,13 @@ program define n_level_program, rclass
 			di as error "Error: Attempting to display more than 800 labels"
 			error 2000
 		}
-   }
-  return local n_level `n_level'
+	}
+	return local n_level `n_level'
 
 end 
 /**********************************************************************************/
 program define globalminmax, rclass
-   version 7
+	version 7
 	* compute min and max values over all variables
 	syntax varlist
 
@@ -355,18 +339,34 @@ end
 /**********************************************************************************/
 program define compute_vertical_width
    version 7
-   * compute the difference of the y coordinates needed when width is taken to 
-   * mean right-angle width (distance between two parallel lines)
+   * compute the difference of the y coordinates needed 
+   * width is right-angle width (distance between two parallel lines)
    * ar_x: (aspectratio) how much longer is the x axis relative to the y axis
    * on input : width_y has already been "generate"d 
    * width_y is computed as a result 
+   
    args xstart xend ystart yend width width_y xrange yrange ar_x
 
+   *xdiff is the fraction of space relative to the range occupied by any particular parallelogram. 
+   *  For example, with 5 variables the xrange=5-1=4.   
+   *  Going from the 2nd to the third x-variable has an xdiff = 1/ 4  * ar_x .
+   *ydiff is the same thing for y, i.e. the fraction that y drops/increases for one box relative to its range.
    tempvar xdiff ydiff
    qui gen `xdiff'= .
    qui gen `ydiff'= .
    qui replace `xdiff'= (`xend'-`xstart')/`xrange' * `ar_x'
    qui replace `ydiff'= (`yend'-`ystart')/ `yrange'
+   
+   * The centerline of the parallelogram, xdiff and ydiff from a triangle with a right angle. 
+   * theta is the angle between xdiff and the centerline of the parallelogram.
+   * From this big triangle:  
+   *     Cos(theta) = xdiff/  sqrt(xdiff^2 +ydiff^2) 
+   * The angle theta reappears for width and width_y, as part of the parallelogram: 
+   *     Cos(theta)= width/ width_y  .
+   * Putting these together: 
+   *    Width/ width_y = xdiff/ sqrt(xdiff^2 +ydiff^2)
+   * Solving for width_y : 
+   *            width_y = width  / xdiff   * sqrt(xdiff^2 +ydiff^2)
    qui replace `width_y'=`width' / `xdiff' * sqrt(`xdiff'*`xdiff'+`ydiff'*`ydiff') 
 
 end 
@@ -378,12 +378,12 @@ program define gen_colorgroup
    syntax ,  hivar(varname) HIVALues(string)
    
 		capture confirm numeric variable `hivar'
-        if !_rc {
+		if !_rc {
 			qui gen_colorgroup_num , hivar(`hivar') hivalues(`hivalues')  //numeric variable
-        }
-        else {
+		}
+		else {
 			gen_colorgroup_str , hivar(`hivar') hivalues(`hivalues')  //string variable
-        } 
+		} 
 end
 /**********************************************************************************/
 * generate the colorgroup variable,numeric
@@ -553,10 +553,9 @@ program define GraphBoxColor
 	    qui gen `xstart_shrinked'=.
 	    qui gen `xend_shrinked'=.
 	    shrink_x_coordinates, shape("parallelogram") xlow(`xstart_shrinked') xhigh(`xstart') xlaglow(`xend_shrinked') xlaghigh(`xend') ///
-                    yrange(`yrange') ylabmax(`ylabmax') ylabmin(`ylabmin')
-        qui replace `xstart'=`xstart_shrinked'
-        qui replace `xend'=`xend_shrinked'
-
+                   yrange(`yrange') ylabmax(`ylabmax') ylabmin(`ylabmin')
+		qui replace `xstart'=`xstart_shrinked'
+		qui replace `xend'=`xend_shrinked'
 	}
 
 
@@ -674,6 +673,8 @@ end
 ///////////////////////////////////////////////////////////////////////////////////////////////////////
 //  prepare plotting a single parallelogram: 
 //  create command `addplot' and create three variables needed for the plot
+//  rarea needs a different observation for each x-value. A parallelogram has 2 x-values, 
+//      so there are 2 observations here.
 program define plot_parallelogram, rclass
 	version 14.2
 	syntax varlist (min=3 max=3), yhigh(real) ylow(real) x1(real) ylaghigh(real) ylaglow(real) x2(real) [ * ]
@@ -708,6 +709,8 @@ end
 //  prepare plotting a single quadrangle  (can be used for rectangles)
 //  create command `addplot' and create three variables needed for the plot
 //  varlist has only 3 variables, because rarea only needs 3 variables
+//  rarea needs a different observation for each of the four different x-values;
+//     the rectangle is plotted in 3 segements between the 4 x-values
 program define plot_quadrangle, rclass
 	version 17.0
 	syntax varlist (min=3 max=3), ///
@@ -1185,3 +1188,4 @@ end
 //*! 1.2.7   Nov 13, 2023: remove display statement leftover from debugging
 //*! 1.2.8   Nov 16, 2023: fixed bug related to "labelopt" 
 //*! 1.2.9   Nov 17, 2023: colorlist now allows RGB values
+//*! 1.3.0   Jan 26, 2024: removed duplicate code, improved documentation compute_vertical_width
