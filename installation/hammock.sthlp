@@ -189,7 +189,9 @@ This option has no effect unless {it:label} is specified.
 The arguments are passed  to {it:{help added_text_options}}. 
 This can be used to manipulate the text sizes of the labels, for example, {it: labelopt(size(vsmall))}.
 Text size names are explained in {it:{help textsizestyle}}. 
-By default, label size is "medium". If option {it:label} is not specified,  option {it:labelopt} is ignored. 
+By default, label size is "medium". If option {it:label} is not specified,  option {it:labelopt} is ignored.
+An optional argument can also be used to draw a line between the missing values below and the non-missing values:
+{it: yline(4, lcolor(black))}. 
   
 {phang}
 {opt no_outline} (rarely needed) In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
