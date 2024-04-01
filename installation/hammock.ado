@@ -1,11 +1,11 @@
 program define hammock
-*! 1.4.0   Feb 21, 2024: For parallelogram, iterate between computing range and vertical width
+*! 1.4.1   Apr 01, 2024: fixed bug plotting labels for obs with missing values when not specifying missing
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
 		LABel labelopt(str) label_min_dist(real 3.0) ///
 		SAMEscale(varlist) ///
-		ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline no_missingline * ]
+		ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline  * ]
 
 	confirm numeric variable `varlist'
 
@@ -52,10 +52,19 @@ program define hammock
 	// Stata's default is ysize(4) xsize(5.5)
 	// see "help region_options"
 	
+	
+	// if "missing" not specified, drop observations with missing values
+	// do this before range transformation; or else obs may generate labels for non-missing x-vars, but obs are later removed
+	if (`missing'==0) {
+		foreach v of var `varlist' { 
+			qui drop if `v'==.
+		}
+	}
 
 	if `addlabel'==1 {
 		list_labels `varlist', separator(`separator')
-		matrix `label_coord'= r(label_coord)
+		// matrix has 3 cols: 1 variable values/levels, 2 variable index in `varlist',3  ./0 to mark start of new var
+		matrix `label_coord'= r(label_coord)  
 		local label_text  "`r(label_text)'"
 	}
 
@@ -63,14 +72,6 @@ program define hammock
 	local max=`k'
 	tokenize `varlist' 
 	
-	// if "missing" not specified, drop observations with missing values
-	// do this now, so the range calculations of earlier variables (with non-missing values)are not affected 
-	// before we find a missing value in a later variable
-	if (`missing'==0) {
-		foreach v of var `varlist' { 
-			qui drop if `v'==.
-		}
-	}
 
 	/*generate colorgroup variable for highlighting*/
 	/*later, missval replaces "." , so gen_colorgroup needs to go before*/
@@ -85,7 +86,7 @@ program define hammock
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
 	transform_variable_range `varlist', same(`same') addlabel(`addlabel') ///
 		rangeexpansion(`rangeexpansion') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
-	// local yline=r(yline) 	//not currently using yline; 
+	// local yline=r(yline) //not currently using yline; 
 							//such a line can be passed directly as optional argument
 	if (`addlabel')  decide_label_too_close ,  mat_label_coord("`label_coord'") min_distance(`label_min_dist')
 	
@@ -124,7 +125,7 @@ program define hammock
 	* scatter std_y  `graphx'
 
 	qui replace _freq=max(`minbarfreq',_freq)
-
+	
 	
 	*** preparation for graph 
 	
@@ -288,7 +289,7 @@ program  compute_addlabeltext, rclass
 				local pos=`j'*2-1  /* positions 1,3,5,7, ...  */
 				// text to plot ="``pos''"      y = `mat_label_coord'[`j',1]        x= `mat_label_coord'[`j',2]  
 				// the matrix needs to be evaluated as  `=matrixelem'  ; otherwise just the name of the matrix elem appears
-				local addlabeltext= `"`addlabeltext' `=`mat_label_coord'[`j',1]' `=`mat_label_coord'[`j',2]' "``pos''" "'
+				local addlabeltext= `"`addlabeltext'`=`mat_label_coord'[`j',1]' `=`mat_label_coord'[`j',2]' "``pos''" "'
 			}
 		}
 		if (`missing'==1) local addlabeltext= `"`addlabeltext' 0 1 "missing" "'
@@ -1135,7 +1136,7 @@ end
 // input :	  mat_label_coord[,3] has "." for the first element of each variable (where no distances are computed)
 //			  min_distance: minimum distance between labels  (on a scale from 0-100)
 // assume :		labels are sorted in ascending order
-// output:	  mat_label_coord[,3] contains decision (0= do not plot, 1= plot, .= bottom most label )
+// output:	  mat_label_coord[,3] contains decision (0= do not plot, 1= plot, .= bottom most label (also first label of new var in sequence)
 program decide_label_too_close 
 	version 16.0
 	syntax ,  mat_label_coord(str) min_distance(real)
@@ -1186,3 +1187,4 @@ end
 //*! 1.2.9   Nov 17, 2023: colorlist now allows RGB values
 //*! 1.3.0   Jan 26, 2024: removed duplicate code, improved documentation compute_vertical_width
 //*! 1.4.0   Feb 21, 2024: For parallelogram, iterate between computing range and vertical width
+//*! 1.4.1   Apr 01, 2024: fixed bug plotting labels for obs with missing values when not specifying missing
