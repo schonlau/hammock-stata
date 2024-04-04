@@ -1,5 +1,5 @@
 program define hammock
-*! 1.4.1   Apr 01, 2024: fixed bug plotting labels for obs with missing values when not specifying missing
+*! 1.4.2   Apr 03, 2024: removed "set matsize" (obsolete in modern Stata) and corresponding error msg
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -367,15 +367,9 @@ program define n_level_program, rclass
 		  local temp= r(r)
 		local n_level=`n_level' + `temp'
 	}
-	if (`n_level'>40) {
-		if (`n_level'<=800) {
-			set matsize `n_level'
-		}
-		else {
-			di as error "Error: Attempting to display more than 800 labels"
-			error 2000
-		}
-	}
+	/* I used to set matsize here,
+	 but in modern flavours of stata "set matsize" is obsolete
+	 Stata flavour determines matsize (see help limits) */
 	return local n_level `n_level'
 
 end 
@@ -1188,3 +1182,4 @@ end
 //*! 1.3.0   Jan 26, 2024: removed duplicate code, improved documentation compute_vertical_width
 //*! 1.4.0   Feb 21, 2024: For parallelogram, iterate between computing range and vertical width
 //*! 1.4.1   Apr 01, 2024: fixed bug plotting labels for obs with missing values when not specifying missing
+//*! 1.4.2   Apr 03, 2024: removed "set matsize" (obsolete in modern Stata) and corresponding error msg
