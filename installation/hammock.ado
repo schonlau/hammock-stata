@@ -1,5 +1,5 @@
 program define hammock
-*! 1.4.2   Apr 03, 2024: removed "set matsize" (obsolete in modern Stata) and corresponding error msg
+*! 1.4.3   Apr 05, 2024: allow hivalues with <=,>= signs , e.g. hivalues(>=2) 
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -22,6 +22,10 @@ program define hammock
 		local varnamewidth=0.3   // if addlabel, change the default space to 0.3
 	}
 
+	parse_hivalues, hivalues("`hivalues'") hiprefix("") 
+	local hiprefix = r(hiprefix)  // if missing, this assigns hiprefix="."
+	local hivalues = r(hivalues)  // caution : overwrites hivalues
+	
 	check_sufficient_colors ,  hivar("`hivar'") hivalues("`hivalues'") colorlist(`"`colorlist'"') 
 	if ("`colorlist'"=="")	 local colorlist="black red  blue teal  yellow sand maroon orange olive magenta"
 
@@ -75,7 +79,7 @@ program define hammock
 
 	/*generate colorgroup variable for highlighting*/
 	/*later, missval replaces "." , so gen_colorgroup needs to go before*/
-	if "`hivar'"!=""    qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues')  
+	if "`hivar'"!=""    qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues') hiprefix(`hiprefix')
 	else 				qui gen colorgroup=1
 	qui tab colorgroup
 	local ncolors=r(r) // number of colors
@@ -434,8 +438,13 @@ end
 * string variables allowed only when highlighting a variable not in varlist
 program define gen_colorgroup
 	version 16
-	syntax ,  hivar(varname) HIVALues(string)
+	syntax ,  hivar(varname) HIVALues(string) hiprefix(string)
 
+di as red "hiprefix=`hiprefix'"
+	if "`hiprefix'"!="." {
+		qui gen_colorgroup_prefix,  hivar(`hivar') hivalues(`hivalues') hiprefix(`hiprefix')
+	}
+	else {
 		capture confirm numeric variable `hivar'
 		if !_rc {
 			qui gen_colorgroup_num , hivar(`hivar') hivalues(`hivalues')  //numeric variable
@@ -443,6 +452,7 @@ program define gen_colorgroup
 		else {
 			gen_colorgroup_str , hivar(`hivar') hivalues(`hivalues')  //string variable
 		} 
+	}
 end
 /**********************************************************************************/
 * generate the colorgroup variable,numeric
@@ -469,8 +479,6 @@ program define gen_colorgroup_num
 			qui replace colorgroup=`pen' if  `hivar'==.
 		}
 	}
-	* list  `hivar' colorgroup
-
 end
 /**********************************************************************************/
 * generate the colorgroup variable, string
@@ -490,7 +498,19 @@ program define gen_colorgroup_str
 		}
 	}
     *list  `hivar' colorgroup
+end
+/**********************************************************************************/
+* generate the colorgroup variable when the prefix ("<" or ">") is present
+* one highlighting color: 2
+* all values not mentioned in hivalues get color=1
+* syntax enforces that only a single hivalue is allowed
+* missing values are not highlighted when specifying, e.g.  >3 
+program define gen_colorgroup_prefix
+	version 16
+	syntax  ,  hivar(varname) HIVALues(real) hiprefix(string)
 
+	qui gen colorgroup=1
+	qui replace colorgroup=2 if `hivar' `hiprefix' `hivalues' & !missing(`hivar')
 end
 /**********************************************************************************/
 program define computeylablimit, rclass
@@ -1038,6 +1058,39 @@ program compute_4corners_rectangle
 	}
 end
 ///////////////////////////////////////////////////////////////////////////////////////////
+// parse hivalues: remove the <,>,<=,>= sign , if present
+// ">3" parses to prefix=">", hivalues="3"
+// "2 3 5" parses to  prefix="", hivalues="2 3 5"
+// "> 2 3 5" is nonsensical but does not produce an error(caught later in gen_colorgroup_prefix)
+// ">=2" parses to prefix">=", hivalues"2"
+// "=2" prases to  prefix="", hivalues"2"
+// "mild"  parses in prefix="" and hivalues="mild"
+program parse_hivalues, rclass
+	version 17
+	syntax , [ hivalues(string) hiprefix(string) ]
+	
+	local hiprefix=""
+	if "`hivalues'"!="" {
+		tokenize `hivalues', parse(">=<")
+		//note: ">=2" is parsed as ">=","2"
+		if "`3'"!="" {
+			di as error "Unexpected string in hivalues. (string was parsed into 3 or more substrings)" 
+			exit 
+		}
+		else if "`1'"=="<" || "`1'"==">" || "`1'"==">=" || "`1'"=="<=" {
+			local hiprefix="`1'"
+			local hivalues="`2'"
+		}
+		else if "`1'"=="=" {
+			// remove "=" from string, don't use it as a prefix
+			local hivalues="`2'"
+		}
+		// else leave hivalues as is 
+	}
+	return local hivalues "`hivalues'"
+	return local hiprefix "`hiprefix'"
+end 
+///////////////////////////////////////////////////////////////////////////////////////////
 // colorlist should not be smaller than number of values in hivalues + 1 (default color)
 program define check_sufficient_colors
 	version 16
@@ -1183,3 +1236,4 @@ end
 //*! 1.4.0   Feb 21, 2024: For parallelogram, iterate between computing range and vertical width
 //*! 1.4.1   Apr 01, 2024: fixed bug plotting labels for obs with missing values when not specifying missing
 //*! 1.4.2   Apr 03, 2024: removed "set matsize" (obsolete in modern Stata) and corresponding error msg
+//*! 1.4.3   Apr 05, 2024: allow hivalues with <=,>= signs , e.g. hivalues(>=2) 

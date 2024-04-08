@@ -66,7 +66,8 @@ will usually appear to be a single line because each category typically
  only contains one observation.
 
 {pstd} The order of variables in {it:varlist} determines the order of variables in the graph.  
-All variables in {it:varlist} must be numerical. String variables should be 
+All variables in {it:varlist} must be numerical, but value labels can be used to assign labels to values.  
+String variables should be 
 converted to numerical variables first, e.g. using {cmd: encode} or {cmd: destring}. 
 
 {title:Installation}
@@ -109,30 +110,44 @@ can be used to specify which individual categories to highlight.
 A value that is highlighted appears in a different color and observations in this 
 category can be traced through the entire graph. 
 {it:hivariable } does not have to be part of {it:varlist}.
-If so, it can also be string variable.
+If so, it can also be a string variable.
 
 {phang}
 {opt hivalues}
 specifies which values of {it: hivariable} are highlighted.
-For example, {it: hivalues(4 9)} will use different colors for {it:hivariable==4} and {it:hivariable==9}.
-All values except 4 and 9 use the default color, the first color in {it: colorlist}.
-Values 4 and 9 are assigned the second and third color in {it: colorlist}, respectively. 
-If more than 8 values are specified, colors are recycled.
-{it: hivalues} is ignored if {it: hivariable} is not specified. 
+{it: hivalues} allows either a numlist, 
+a scalar preceeded by ">=","<=",">" or "<", 
+or a string when highlighting a string variable.
 
 {pmore}
-If {it:hivariable} is a string variable, {it:hivalues} may specify strings or subsets of strings. 
-For example, for the Shakespeare data set, {it:hivariable(play_name)} {it:hivalues(Richard Mac)} 
+{it:hivalues} as a numlist: 
+To highlight multiple values of {it: hivariable}, specify, for example, {it: hivalues(4 9)}. 
+Values 4 and 9 are assigned the second and third color in {it: colorlist}, respectively. 
+(If desired, the second and third color may be the same color.) 
+All values except 4 and 9 use the default color, the first color in {it: colorlist}. 
+To highlight a single value of {it: hivariable}, specify, for example, {it: hivalues(4)}. 
+To highlight missing values of {it: hivariable}, specify {it: hivalues(.)}
+
+{pmore}
+{it:hivalues} with ">","<",">=","<=" comparisons: For example, {it: hivalues(>=3)} highlights all values greater than or equal to 3 
+using the same color  (the second color in {it: colorlist}).  
+
+{pmore}
+{it:hivalues} may specify strings or subsets of strings when {it:hivariable} is a string variable. 
+For example, for the Shakespeare data set, {it:hivar(play_name)} {it:hivalues(Richard Mac)} 
 highlights all plays that contain "Richard" in one color and those that contain "Mac" in another color. 
+Because variables in {it:varlist} must be numerical (with optional string labels), 
+this is only relevant if the {it:hivar} is NOT part of {it:varlist}.
+
+{pmore}
+{it: hivalues} is ignored if {it: hivariable} is not specified. If more than 8 values/strings are specified, colors are recycled.
 
 {phang}
 {opt colorlist} specifies a list of colors to be used.  
 The first color in the list is the default color, the remainder is used for highlighting. 
 If unspecified, the color list is  
-{it:colorlist("black red  blue teal  yellow sand maroon orange olive magenta")}.
+"black red  blue teal  yellow sand maroon orange olive magenta".
 Color names are explained in {it:{help colorstyle}}.
-Colors defined by their RGB or CMYK values can be specified using compound double quotes: 
-{it:colorlist(`" "178 243 243"  yellow  "0 0 255 0"  blue "')}. 
 The color list should not be shorter than the number of values to be highlighted plus one (default color).
 
 {dlgtab:Spacing and Layout}
@@ -189,9 +204,7 @@ This option has no effect unless {it:label} is specified.
 The arguments are passed  to {it:{help added_text_options}}. 
 This can be used to manipulate the text sizes of the labels, for example, {it: labelopt(size(vsmall))}.
 Text size names are explained in {it:{help textsizestyle}}. 
-By default, label size is "medium". If option {it:label} is not specified,  option {it:labelopt} is ignored.
-An optional argument can also be used to draw a line between the missing values below and the non-missing values:
-{it: yline(4, lcolor(black))}. 
+By default, label size is "medium". If option {it:label} is not specified,  option {it:labelopt} is ignored. 
   
 {phang}
 {opt no_outline} (rarely needed) In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
