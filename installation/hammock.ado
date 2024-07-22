@@ -1,5 +1,5 @@
 program define hammock
-*! 1.4.3   Apr 05, 2024: allow hivalues with <=,>= signs , e.g. hivalues(>=2) 
+*! 1.4.4 Jul 22, 2024: accommodate scheme stcolor Stata18 adding xlab(,nogrid) ylab(,nogrid)
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -440,7 +440,6 @@ program define gen_colorgroup
 	version 16
 	syntax ,  hivar(varname) HIVALues(string) hiprefix(string)
 
-di as red "hiprefix=`hiprefix'"
 	if "`hiprefix'"!="." {
 		qui gen_colorgroup_prefix,  hivar(`hivar') hivalues(`hivalues') hiprefix(`hiprefix')
 	}
@@ -721,7 +720,7 @@ program define GraphBoxColor
 	*/
 	
 	twoway scatter std_y `graphx', ///
-		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks) ylab(,valuelabel noticks)  `yline'     ///
+		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
 		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
 		plotregion(style(none) m(zero)) ///
 		aspect(`aspectratio') `options'  ||  `addplot' `addlabeltext'
@@ -1237,3 +1236,4 @@ end
 //*! 1.4.1   Apr 01, 2024: fixed bug plotting labels for obs with missing values when not specifying missing
 //*! 1.4.2   Apr 03, 2024: removed "set matsize" (obsolete in modern Stata) and corresponding error msg
 //*! 1.4.3   Apr 05, 2024: allow hivalues with <=,>= signs , e.g. hivalues(>=2) 
+//*! 1.4.4   Apr 05, 2024: minor change

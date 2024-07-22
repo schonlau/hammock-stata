@@ -244,10 +244,6 @@ In particular,  the option {it: xlab(,labsize(vsmall))} makes variable names sma
 {p_end}
 
 {phang2}{cmd:. sysuse bplong}{p_end}
-
-{pstd}  Specify a scheme to ensure a white background to the plot.
-
-{phang2}{cmd:. set scheme s1color}
 	
 {phang2}{cmd:. hammock sex agegrp when bp, label}{p_end}
 
@@ -310,7 +306,6 @@ We also find that life expectancy, GNP and safewater are highly correlated, beca
 {pstd}{it:({stata hammock_examples hammock_lifeexp:click to run})}{p_end}
 
 
-
 {dlgtab:Missing values 1}
 {pstd} Continuing with the lifeexp data, we check for missing values.  Missing values are indicated 
 by a category below the horizontal line near the bottom. 
@@ -323,7 +318,6 @@ occasionally due to a coding error.
 Here, there is no discernible pattern to the missing values.
 
 {pstd}{it:({stata hammock_examples hammock_lifeexp_missing:click to run})}{p_end}
-
 
 
 {dlgtab:Missing values 2}
@@ -358,10 +352,17 @@ We also add a little more space to the left and right margins so the variable na
 {pstd}{it:({stata hammock_examples hammock_agegroup2:click to run})}{p_end}
 
 
+{dlgtab: Stata Version 17 and earlier}
+
+{pstd}  In Stata 18 the default scheme, stcolor, has a white background. 
+If you are using Stata 17 or earlier, specify a scheme to ensure a white background to the plot as follows:
+
+{phang2}{cmd:. set scheme s1color}
+
 
 {title:Copyright}
 
-{pstd} Copyright 2002-2022 Matthias Schonlau {p_end}
+{pstd} Copyright 2002-2024 Matthias Schonlau {p_end}
 
 {pstd} This program is free software: you can redistribute it and/or modify it under the terms of the GNU General 
 Public License as published by the Free
@@ -376,10 +377,15 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more d
 
 {title:References}
 
+{p 0 8} Schonlau M. Hammock plots: visualizing categorical and numerical variables. 
+Journal of Computational and Graphical Statistics (to appear in print). 
+{break} Journal: {browse "https://www.tandfonline.com/doi/full/10.1080/10618600.2024.2322561"}
+{break} Preprint:{browse "https://schonlau.net/publication/24schonlau_hammock_JCGS.pdf"}
+
 {p 0 8}Schonlau M. Visualizing Categorical Data Arising in the Health Sciences 
 Using Hammock Plots. In Proceedings of the Section on Statistical Graphics, 
-American Statistical Association; 2003, CD-ROM. 
-Available from : {browse "http://www.schonlau.net/publication/03jsm_hammockplot.pdf"}
+American Statistical Association; 2003, 
+{browse "http://www.schonlau.net/publication/03jsm_hammockplot.pdf"}
 
 
 {title:Author}
