@@ -1,5 +1,5 @@
 program define hammock
-*! 1.4.4 Jul 22, 2024: accommodate scheme stcolor Stata18 adding xlab(,nogrid) ylab(,nogrid)
+*! 1.4.5 Jul 23, 2024: documentation on aspect ratio
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -46,16 +46,24 @@ program define hammock
 	local separator "@"  /*one letter only, separates variable names */
 	
 	// Aspectratio
-	// Stata define aspectratio as height/width of the inner plotregion (see "help aspect"). I chose as default: aspect=4/5.5=0.7272
-	// Because it refers to the *inner* plot region, it is not affected by the xlabels at the bottom.
-	// aspectratio is explicitly specified in the syntax, but can be overwritten in "*"	
-	// Outside of Stata, the aspectratio is often defined the other way around (including in the initial drafts of this program)
+	// see "help region_options", "help aspect_option", see Glossary in Graphics manual
+	// `xsize' and `ysize' define the whole-graph (*available area*) aspectratio.  
+	// 		Stata's default up to version 17 was  ysize(4) xsize(5.5)
+	// 		In Stata 18, the default scheme switched to stcolor ysize(4.5) and xsize(7.5), aspect= 0.8181,
+	//		but I found leaving the old default, aspect=0.7272, used the available space better
+	// `aspect' defines the *plot region* aspect ratio.
+	// Stata defines aspect ratio as: height/width (rather than the other way around)
+	// I chose as default: aspect=ysize/xsize=4/5.5=0.7272 ,
+	//		i.e. I chose that the *plot region* has the same aspect ratio as the *available area*.) 
+	// Outside of Stata, aspectratio is often defined the other way around 
+	//		(including in initial versions of hammock.ado)
 	// Therefore defining a second quantity:
 	local ar_x= 1/`aspectratio'
-	// `xsize' and `ysize' define the whole-graph aspectratio.  `aspect' defines the plot aspect ratio.
-	// Stata's default is ysize(4) xsize(5.5)
-	// see "help region_options"
-	
+	// aspectratio is explicitly specified in the syntax, but can be overwritten in "*"	
+	// The aspectratio(#) option constrains the ratio of the *plot region* to #. 
+	// The eventual plotting command below uses 
+	//    plotregion(style(none) m(zero)) aspect(`aspectratio')
+	// 		Because of margin(0): outer plotregion=inner plotregion
 	
 	// if "missing" not specified, drop observations with missing values
 	// do this before range transformation; or else obs may generate labels for non-missing x-vars, but obs are later removed
@@ -1236,4 +1244,5 @@ end
 //*! 1.4.1   Apr 01, 2024: fixed bug plotting labels for obs with missing values when not specifying missing
 //*! 1.4.2   Apr 03, 2024: removed "set matsize" (obsolete in modern Stata) and corresponding error msg
 //*! 1.4.3   Apr 05, 2024: allow hivalues with <=,>= signs , e.g. hivalues(>=2) 
-//*! 1.4.4   Apr 05, 2024: minor change
+//*! 1.4.4   Jul 22, 2024: accommodate scheme stcolor Stata18 adding xlab(,nogrid) ylab(,nogrid)
+//*! 1.4.5   Jul 23, 2024: documentation on aspect ratio
