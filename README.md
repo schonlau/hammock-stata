@@ -35,7 +35,7 @@ SSC (**v1.25**):
 ssc install hammock, replace
 ```
 
-GitHub (**v1.44**):
+GitHub (**v1.45**):
 
 ```
 net install hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
