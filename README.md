@@ -29,13 +29,13 @@ Stata implementation of the hammock plot
 
 Install hammock from either `ssc` or `GitHub` (may be more recent):
 
-SSC (**v1.25**):
+SSC:
 
 ```shell
 ssc install hammock, replace
 ```
 
-GitHub (**v1.45**):
+GitHub:
 
 ```
 net install hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
