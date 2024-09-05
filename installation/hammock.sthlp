@@ -7,7 +7,7 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {title:Title}
 
 {p2colset 5 23 25 2}{...}
-{p2col :{cmd:hammock} {hline 2}} Hammock plot for visualizing categorical and continuous data {p_end}
+{p2col :{cmd:hammock} {hline 2}} Hammock plot for visualizing categorical and numerical data {p_end}
 {p2colreset}{...}
 
 
@@ -22,24 +22,28 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synoptline}
 {syntab :Main}
 {synopt :{opt m:issing}} Show missing values {p_end}
-{synopt :{opt lab:el}} Show value labels or else show values   {p_end}
+{synopt :{opt lab:el}} Show value labels and univariate bars {p_end}
 
 {syntab :Highlighting}
 {synopt :{opt hivar:iable(varname)}} Name of variable to highlight {p_end}
 {synopt :{opt hival:ues(string)}}  List of values of {it:hivariable} to highlight {p_end}
 {synopt :{opt col:orlist(str)}} Default color and colors for highlighting {p_end}
+{synopt :{opt uni_colorlist(str)}} Default color and colors for highlighting for univariate bars {p_end}
 
-{syntab :Manipulating Spacing and Layout}
-{synopt :{opt spa:ce(real)}} Control fraction of space allocated to labels rather than to graph elements {p_end}
-{synopt :{opt bar:width(real)}} Change width of the plot elements to reduce clutter {p_end}
-{synopt :{opt minbar:freq(int)}} Specify minimum bar width {p_end}
+{syntab :Layout of labels and univariate bars}
+{synopt :{opt spa:ce(real)}} Control fraction of space allocated to labels/univ. bars rather than to connecting boxes {p_end}
 {synopt :{opt label_min_dist(real)}} Specify minimum distance between two labels on the same axis{p_end}
 {synopt :{opt labelopt(str)}} Pass options to {it:{help added_text_options}}, e.g. to manipulate label text size{p_end}
-{synopt :{opt aspect:ratio(real)}} Aspect ratio of the plot region {p_end}
+{synopt :{opt uni_fraction(real)}} For univariate bars, proportion of vertical space covered with bars {p_end}
+
+{syntab :Layout of boxes in between axes}
+{synopt :{opt bar:width(real)}} Change width of the connecting boxes to reduce clutter {p_end}
+{synopt :{opt minbar:freq(int)}} Specify minimum box width {p_end}
+{synopt :{opt shape(str)}} Box shape: "parallelogram" or "rectangle" (default) {p_end}
 {synopt :{opt no_outline}} Do not outline the edges of semi-translucent boxes {p_end}
 
 {syntab :Other options}
-{synopt :{opt shape(str)}} Box shape: "parallelogram" or "rectangle" (default) {p_end}
+{synopt :{opt aspect:ratio(real)}} Aspect ratio of the plot region {p_end}
 {synopt :{opt same:scale(varlist)}} Use the same axis scale for each variable specified {p_end}
 {synopt :graph_options} Specify additional options passed to  {it:graph, twoway}  {p_end}
 {synoptline}
@@ -48,8 +52,7 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 
 {title:Description}
 
-{pstd}{cmd:hammock} draws a graph to visualize categorical data - though it also does fine
-with continuous data. 
+{pstd}{cmd:hammock} draws a graph to visualize categorical and numerical data. 
 Variables are lined up parallel to the vertical axis. Categories within a variable
 are spread out along a vertical line. Categories of adjacent variables are connected by 
 boxes. (The boxes are parallelograms; we use boxes for brevity). The "width" of a box is proportional to 
@@ -151,7 +154,16 @@ If unspecified, the color list is
 Color names are explained in {it:{help colorstyle}}.
 The color list should not be shorter than the number of values to be highlighted plus one (default color).
 
-{dlgtab:Spacing and Layout}
+{phang}
+{opt uni_colorlist(str)} specifies different colors to be used for univariate bars. By default, the first (default) color is {it:gray%20}, 
+and the highlighting colors are as specified in {it:colorlist}. 
+If you specify your own list, remember the first color is the default color 
+and the second color is the first highlighting color.
+To avoid univariate bars altogether, specify {it:uni_colorlist(bg)} 
+or {it:uni_colorlist(bg bg)} if there is one highlighting color.
+({it:bg} stands for background color, the bars will be invisible).
+
+{dlgtab:Layout of labels and univariate bars}
 
 {phang}
 {opt space} specifies the fraction of plot allocated for 
@@ -159,12 +171,33 @@ displaying labels. If {it:label} is specified, the default is 0.3, meaning 30% o
  space is allocated to the display of labels, and 70% for the graph elements.
  If {it:label} is not specified, the default is 0. Negative values are allowed.
 
-{pmore}
-Note: If {it:shape=(parallelogram)}, for technical reasons it is sometimes necessary 
-to "shrink" the boxes to make sure width is proportional to the number of observations.
-(Stata automatically extends the plotting area with interferes with the calculation of width.) 
-In that case, {it:space(0)} may still result in some space.
-Space can be removed by using negative values as in {it:space(-0.1)}.
+{phang}
+{opt label_min_dist} specifies the minimum distance between two labels on the same axis.
+A label is associated with each unique value of a variable.  
+When (numerical) variables have values close to each other, overplotting of labels may occur.  
+This option prevents overplotting by selectively not plotting some labels. 
+The bottom most label is always plotted, and any additional label above is only plotted if 
+it is at least {it:label_min_dist} away from the closest label below.  
+Labels are plotted on a scale from 0 (bottom label) to 100 (top label). 
+By default, a label must be at least 3 units (out of 100) away from the closest label below.
+Specifying {it:label_min_dist(0)} will plot all labels.
+Specifying {it:label_min_dist(100)} will plot only the bottom and the top label.
+This option has no effect unless {it:label} is specified.
+  
+{phang}
+{opt labelopt} specifies optional arguments to the labels.
+The arguments are passed  to {it:{help added_text_options}}. 
+This can be used to manipulate the text sizes of the labels, for example, {it: labelopt(size(vsmall))}.
+Text size names are explained in {it:{help textsizestyle}}. 
+By default, label size is "medium". If option {it:label} is not specified,  option {it:labelopt} is ignored. 
+
+{phang}
+{opt uni_fraction(real)} For univariate bars, proportion of vertical space covered with bars. 
+By default, {it:uni_fraction(0.5)}. This option can be used to avoid overlapping univariate bars
+or to improve layout according to user taste.
+
+
+{dlgtab:Layout of boxes in between axes}
  
 {phang}
 {opt barwidth} specifies the width of the bars relative to the default width.
@@ -186,32 +219,14 @@ Space can be removed by using negative values as in {it:space(-0.1)}.
 {pmore}
  During highlighting, bars may consist of multiple segments with different colors. 
  In that case, {it:minbarfreq} is applied to each color segment separately.
-  
+
 {phang}
-{opt label_min_dist} specifies the minimum distance between two labels on the same axis.
-A label is associated with each unique value of a variable.  
-When (numerical) variables have values close to each other, overplotting of labels may occur.  
-This option prevents overplotting by selectively not plotting some labels. 
-The bottom most label is always plotted, and any additional label above is only plotted if 
-it is at least {it:label_min_dist} away from the closest label below.  
-Labels are plotted on a scale from 0 (bottom label) to 100 (top label). 
-By default, a label must be at least 3 units (out of 100) away from the closest label below.
-Specifying {it:label_min_dist=0} will plot all labels.
-Specifying {it:label_min_dist=100} will plot only the bottom and the top label.
-This option has no effect unless {it:label} is specified.
-  
-{phang}
-{opt labelopt} specifies optional arguments to the labels.
-The arguments are passed  to {it:{help added_text_options}}. 
-This can be used to manipulate the text sizes of the labels, for example, {it: labelopt(size(vsmall))}.
-Text size names are explained in {it:{help textsizestyle}}. 
-By default, label size is "medium". If option {it:label} is not specified,  option {it:labelopt} is ignored. 
-  
-{phang}
-{opt aspectratio} specifies the aspect ratio of the plot region. By default, aspect=0.7272. Changing the default 
-also affects the space between the plot region and the available area. 
-If a long variable name displays partially outside the graph area, increasing the aspect ratio is 
-one way of ensuring variable names are fully visible. 
+{opt shape} refers to the shape of the boxes or plotting elements. 
+The two options are "parallelogram" and "rectangle" (default).  Rectangles can look better for steep angles. 
+They also avoid the so-called reverse line-width illusion of the parallelogram: 
+The vertical width of parallelogram-boxes with steep angles are larger than that of parallelogram-boxes with smaller angles. 
+Focusing on the end points of the boxes, can create the illusion that there are more observations in steep-angled parallelograms
+than there really are. 
   
 {phang}
 {opt no_outline} (rarely needed) In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
@@ -221,15 +236,15 @@ without outlining the edges of the box. This option removes the outline.
  This option only effects semi-translucent colors; it has no effect on regular colors (e.g. "red"). 
   
 
+
 {dlgtab:Other options}
 
 {phang}
-{opt shape} refers to the shape of the boxes or plotting elements. 
-The two options are "parallelogram" and "rectangle" (default).  Rectangles can look better for steep angles. 
-They also avoid the so-called reverse line-width illusion of the parallelogram: 
-The vertical width of parallelogram-boxes with steep angles are larger than that of parallelogram-boxes with smaller angles. 
-Focusing on the end points of the boxes, can create the illusion that there are more observations in steep-angled parallelograms
-than there really are. 
+{opt aspectratio} specifies the aspect ratio of the plot region. By default, aspect=0.7272. Changing the default 
+also affects the space between the plot region and the available area. 
+If a long variable name displays partially outside the graph area, increasing the aspect ratio is 
+one way of ensuring variable names are fully visible. 
+  
 
 {phang}
 {opt samescale} specifies that for the list of variables specified each axis should have the same scale. 

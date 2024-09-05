@@ -1,10 +1,11 @@
 program define hammock
-*! 1.4.5 Jul 23, 2024: documentation on aspect ratio
+*! 2.0.0 Sep 5, 2024: add univariate bars
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
 		LABel labelopt(str) label_min_dist(real 3.0) ///
-		SAMEscale(varlist) ///
+		SAMEscale(varlist)  ///
+		uni_fraction(real .5) uni_colorlist(str) ///
 		ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline  * ]
 
 	confirm numeric variable `varlist'
@@ -29,7 +30,6 @@ program define hammock
 	check_sufficient_colors ,  hivar("`hivar'") hivalues("`hivalues'") colorlist(`"`colorlist'"') 
 	if ("`colorlist'"=="")	 local colorlist="black red  blue teal  yellow sand maroon orange olive magenta"
 
-
 	* observations to use 
 	marksample touse , novarlist
 	qui count if `touse' 
@@ -40,7 +40,7 @@ program define hammock
 	preserve 
 	qui keep if `touse' 
 	tempvar id std_ylag width graphxlag colorgroup
-	tempname label_coord 
+	tempname label_coord uni_matrix
 	qui gen long `id'  = _n 
 	local N = _N
 	local separator "@"  /*one letter only, separates variable names */
@@ -73,35 +73,41 @@ program define hammock
 		}
 	}
 
-	if `addlabel'==1 {
-		list_labels `varlist', separator(`separator')
-		// matrix has 3 cols: 1 variable values/levels, 2 variable index in `varlist',3  ./0 to mark start of new var
-		matrix `label_coord'= r(label_coord)  
-		local label_text  "`r(label_text)'"
-	}
-
 	local k : word count `varlist' 
 	local max=`k'
 	tokenize `varlist' 
 	
-
 	/*generate colorgroup variable for highlighting*/
 	/*later, missval replaces "." , so gen_colorgroup needs to go before*/
 	if "`hivar'"!=""    qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues') hiprefix(`hiprefix')
 	else 				qui gen colorgroup=1
 	qui tab colorgroup
 	local ncolors=r(r) // number of colors
-	
+	create_uni_colorlist, colorlist(`"`colorlist'"') uni_colorlist(`"`uni_colorlist'"') miss(`missing') ///
+		hivar(`hivar') hivalues("`hivalues'")
+	local uni_colorlist= r(uni_colorlist) 
+
+	if `addlabel'==1 {
+		list_labels `varlist', separator(`separator') missing(`missing')
+		// matrix has 3 cols: 1 variable values/levels, 2 variable index in `varlist',3  ./0 to mark start of new var
+		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values 
+		local label_text  "`r(label_text)'" 
+		create_uni_matrix `varlist', ncolors(`ncolors') colorvar("colorgroup") missing(`missing') //univariate frequencies for each bar (separate by color)
+		matrix `uni_matrix' = r(uni_matrix)
+	}
+
+
 	* transform variables' range to be between 0 and 100, also adjust matrix w label coordinates
 	// Note this computes the midpoints (between 0 and 100), the upper/lower points may be a little wider
 	// Missing values are initially assigned -10, but after standardization (std_y) they equal 0
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
 	transform_variable_range `varlist', same(`same') addlabel(`addlabel') ///
 		rangeexpansion(`rangeexpansion') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
+
 	// local yline=r(yline) //not currently using yline; 
 							//such a line can be passed directly as optional argument
 	if (`addlabel')  decide_label_too_close ,  mat_label_coord("`label_coord'") min_distance(`label_min_dist')
-	
+
 	* construct xlabel
 	local i=1
 	foreach v of var `varlist' {
@@ -114,7 +120,7 @@ program define hammock
 	local xlab_num "`xl'"
 	local xlab_num "`xl'`tl'" 
 
-	
+
 	* transform the data from one obs per data point to one obs per graphbox 
 	* using reshape and contract
 
@@ -137,7 +143,6 @@ program define hammock
 	* scatter std_y  `graphx'
 
 	qui replace _freq=max(`minbarfreq',_freq)
-	
 	
 	*** preparation for graph 
 	
@@ -168,19 +173,32 @@ program define hammock
 	if (_N<4)  set obs 4 
 
 
-	// labels
+	// labels + univariate bars
 	label var `graphx' " "
 	label var std_y " "
 	lab define myxlab `xlabel'
 	lab values  `graphx' myxlab
+	tempvar  yhi_uni ylo_uni x_uni color_uni // init univariate bars
+	qui gen `yhi_uni'=.
+	qui gen `ylo_uni'=. 
+	qui gen `x_uni'=.
+	qui gen `color_uni'=.
+	local uni_width= .8*`varnamewidth'
 	
 	if `addlabel'==1 {
-		compute_addlabeltext,  mat_label_coord(`label_coord') missing("`missing'") ///
+		compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
 			label_text("`label_text'") separator(`separator') labelopt(`"`labelopt'"')
 		local addlabeltext=r(addlabeltext)  
+		add_unibars `yhi_uni' `ylo_uni' `x_uni' `color_uni', mat_label_coord(`label_coord') ///
+			mat_uni(`uni_matrix') missing("`missing'") uni_fraction(`uni_fraction') ncolors(`ncolors') 
+		local n_labels = rowsof(`label_coord')  //number of rows for one color
+		adjust_bar_placement `yhi_uni' `ylo_uni', n_labels(`n_labels') 
+
+//local tmpmax= min(_N,40)
+//di "after addlabel: uni_ylo uni_yhi uni_x uni_color" 
+//list  `ylo_uni' `yhi_uni' `x_uni' `color_uni' in 1/`tmpmax'
 	}
 	else  local addlabeltext=""
-
 
 	// compute ylabmin (midpoint-1/2 width) and ylabmax (midpoint+1/2 width)
 	// If y_std contains missing values they are coded 0, just like any other minimum value
@@ -212,8 +230,9 @@ program define hammock
 		aspectratio(`aspectratio') ar_x(`ar_x') xrange(`xrange') yrange(`yrange') ///
 		 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist(`"`colorlist'"') ///
 		 shape("`shape'") outline(`outline') ///
-		 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"')
-
+		 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"') ///
+		 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
+		 uni_width(`uni_width') uni_colorlist(`uni_colorlist')
 	// matrix `label_coord' is still around but not needed in GraphBoxColor 
 	
 end
@@ -282,95 +301,291 @@ program iterate_width_range , rclass
 	}
 end 
 /**********************************************************************************/
-// compute_addlabeltext (needed for GraphBoxColor)
-// input: mat_label_coord arg is a matrix name. Matrix is manipulated. 
+// compute_addlabeltext  (needed for GraphBoxColor)
+// input: mat_label_coord  is a matrix name. Matrix is manipulated. 
+//		yhi_uni, ylo_uni, x_uni : variables for univariate bars 
 //			Manipulations persist after this program closes.
 //			In this program the matrix is NOT changed
-// label_text: Shakespeare example: label_text="adult@adolescent@child@0@1@2@3@4@5@20@0@1@2@3@4@5@6@7@female@male@"
+// label_text (input): Shakespeare example: label_text="adult@adolescent@child@0@1@2@3@4@5@20@0@1@2@3@4@5@6@7@female@male@"
+// output: addlabeltext:   text("ypos1 xpos1 "text1"  ypos2 xpos2 "text2" [...])
+//			variables yhi_uni, ylo_uni, x_uni changed globally.
 program  compute_addlabeltext, rclass
 	version 16
 	syntax , mat_label_coord(str) missing(str) label_text(str) separator(str) [ labelopt(str) ]
 
-		* the labels are overwriting the plot. Plot before the graphboxes 
-		local n_labels = rowsof(`mat_label_coord')
-		tokenize `label_text', parse(`separator')
-		local addlabeltext="text("   // no space between "text" and "("
-		forval j=1/`n_labels' { 
-			if (`mat_label_coord'[`j',2] !=0 &  `mat_label_coord'[`j',3]!=0) { 
-				/* 2nd col==0 crucial if matrix has empty rows, otherwise graph disappears*/
-				local pos=`j'*2-1  /* positions 1,3,5,7, ...  */
-				// text to plot ="``pos''"      y = `mat_label_coord'[`j',1]        x= `mat_label_coord'[`j',2]  
-				// the matrix needs to be evaluated as  `=matrixelem'  ; otherwise just the name of the matrix elem appears
-				local addlabeltext= `"`addlabeltext'`=`mat_label_coord'[`j',1]' `=`mat_label_coord'[`j',2]' "``pos''" "'
-			}
+	* the labels are overwriting the plot. Plot before the graphboxes 
+	local n_labels = rowsof(`mat_label_coord')
+	tokenize `label_text', parse(`separator')
+	local addlabeltext="text("   // no space between "text" and "("
+	forval j=1/`n_labels' { 
+		if (`mat_label_coord'[`j',2] !=0 &  `mat_label_coord'[`j',3]!=0) { 
+			/* 2nd col==0 crucial if matrix has empty rows, otherwise graph disappears*/
+			local pos=`j'*2-1  /* positions 1,3,5,7, ...  */
+			// text to plot ="``pos''"      y = `mat_label_coord'[`j',1]        x= `mat_label_coord'[`j',2]  
+			// the matrix needs to be evaluated as  `=matrixelem'  ; otherwise just the name of the matrix elem appears
+			local addlabeltext= `"`addlabeltext'`=`mat_label_coord'[`j',1]' `=`mat_label_coord'[`j',2]' "``pos''" "'
 		}
-		if (`missing'==1) local addlabeltext= `"`addlabeltext' 0 1 "missing" "'
-		* add label options 
-		local addlabeltext= `"`addlabeltext',`labelopt')"'	
-		return local addlabeltext=`"`addlabeltext'"' // does not allow empty "" returns
+	}
+
+	* add label options 
+	local addlabeltext= `"`addlabeltext',`labelopt')"'	
+	return local addlabeltext=`"`addlabeltext'"' // does not allow empty "" returns
+end 
+/**********************************************************************************/
+// compute vars (yhi,ylo,x,color) from matrices to add Univariate Frequency bars 
+//		If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
+// input: 
+//	mat_uni   		matrix With Univariate frequencies (For all colours,rows appended)
+//	mat_label_coord	Matrix with coordinates of labels (For the first colour only )
+//	uni_fraction		(real) fraction of the univariate space covered with bars
+//	n_colors		(int) Number of colours 
+//output 	variables yhi_uni, ylo_uni, x_uni,color_uni changed globally.
+program  add_unibars, rclass
+	version 18
+	syntax varlist (min=4 max=4), mat_label_coord(str) mat_uni(str) missing(str) ///
+		ncolors(int) uni_fraction(real)
+
+	tokenize `varlist'
+	local yhi_uni `1'
+	local ylo_uni `2'
+	local x_uni   `3'
+	local color_uni `4'
+	
+	local f=`uni_fraction'  //determines what percentage of the univariate space is covered with bars 
+	if (`f'<0 | `f'>1) {
+		di as red "Unexpected input for uni_fraction(`f'). Expected values are 0.0-1.0" 
+		di as res ""   // subsequence displays are in black
+	}
+
+	local n_labels = rowsof(`mat_label_coord')  //number of rows for one color
+
+	tempname var_uni var_label_coord prop prop_one_color
+	qui svmat `mat_uni', names(`var_uni') // this may increase number of obs as needed
+	qui rename `var_uni'1 `prop'  //proportions (cumulative across colors) 
+	qui replace `x_uni'    =`var_uni'2 
+	qui replace `color_uni'=`var_uni'4
+	qui rename `var_uni'5 `prop_one_color'  //proportions for one colour
+	svmat `mat_label_coord', names(`var_label_coord') // after rows for first color, var_label_coord has missing in remainder
+
+	// initialize for first color, (remember all colors appended after another) 
+	// var_label_coord'1  has only first color, but has '.' in the remaining rows, syntax error avoided
+	qui replace `ylo_uni'= `var_label_coord'1-`prop'*`f'*50  if _n<=`n_labels' // 
+	qui replace `yhi_uni'= `var_label_coord'1-`prop'*`f'*50 + `prop_one_color'*`f'*100  if _n<=`n_labels' //
+
+	// additional colors
+	// this statement requires `prop_one_color' be one long variable
+	qui replace `yhi_uni'=  `yhi_uni'[_n-`n_labels']+ `prop_one_color'*`f'*100  if _n>`n_labels' // add to the prev. color
+	qui replace `ylo_uni'=  `yhi_uni'[_n-`n_labels']  if _n>`n_labels' & !missing(`yhi_uni') // this line has to come after calc yhi_uni
+
+	// prevent colors of width 0 to plot (Not tested whether needed)
+	qui replace `x_uni'=. if `prop_one_color'==0 | `color_uni'==0   // `color_uni'=0 is for unused rows cause of missing vals
+	qui replace `color_uni'=. if `color_uni'==0  // if missing , this may happen if not all rows are filled
+
+end 
+/**********************************************************************************/
+//If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
+//input:  	
+//	n_labels: number of labels= number of boxes for any one color
+//on output: 
+//	yhi_uni, ylo_uni Are changed for some bars 
+program adjust_bar_placement 
+	version 18
+	syntax varlist (min=2 max=2), n_labels(int)
+
+	tokenize `varlist'
+	local yhi_uni `1'
+	local ylo_uni `2'
+
+	//If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
+	//Note: If upper is e.g. 103,  some variables will go to 103 and others only to ~100
+	local upper=103 // upper limit a bit above 100, so label is not on border
+	local lower=-3
+	tempvar diff index i_within_color index2 sortorder diff2
+	qui gen `diff'= `yhi_uni'-`ylo_uni'
+
+	//strategy:
+	//	indicator variable as to whether replacement needed for any color
+	//	colors for the same box are at :   i,i+n_colors,i+2* n_colors,...
+	//	for a given group of boxes, if any color exceeds `upper', then set the index for all colors to 1 (max of 0/1 index)
+	//	replace ylo and yhi  if indicator variable is on
+	qui gen `i_within_color' = mod(_n-1,`n_labels')+1   // 1..n_label for each color
+	qui gen `sortorder'=_n
+	quietly { // upper
+		gen `index'= `yhi_uni'>`upper' & !missing(`yhi_uni') // 0/1 whether box exceeds upper limit for any color
+		bysort `i_within_color': egen `index2'= max(`index')  // max ignores missing values
+		sort `sortorder'
+		//noi list `ylo_uni' `yhi_uni' `diff' `index2' `i_within_color'
+		//noi bysort `i_within_color' : list `ylo_uni' `yhi_uni' `diff' `index2' `i_within_color'
+
+		// establish the maximal value and move all colors of that group down 
+		forvalues i = 1/`n_labels' {
+			// for each group of boxes
+			sum `yhi_uni' if `index2' & `i_within_color'==`i' 
+			local i_max=r(max)
+			local diff = `i_max'-`upper'  //diff= max value - upper limit
+			replace `ylo_uni'= `ylo_uni'-`diff' if `index2' & `i_within_color'==`i' //move all values down
+			replace `yhi_uni'= `yhi_uni'-`diff' if `index2' & `i_within_color'==`i'
+		}
+	}
+	quietly { // lower
+		drop `index2' `index'
+		gen `index'= `ylo_uni'<`lower'  // 0/1 whether box is below lower limit for any color
+		bysort  `i_within_color': egen `index2'= max(`index')  // max ignores missing values
+		sort `sortorder'
+		// establish the minimal value and move all colors of that group up 
+		forvalues i = 1/`n_labels' {
+			// for each group of boxes
+			sum `ylo_uni' if `index2' & `i_within_color'==`i' 
+			local i_min=r(min)
+			local diff = `lower'-`i_min'  //diff= lower limit - min value
+			replace `ylo_uni'= `ylo_uni'+`diff' if `index2' & `i_within_color'==`i' //move all values up
+			replace `yhi_uni'= `yhi_uni'+`diff' if `index2' & `i_within_color'==`i'
+		}
+	}
 end 
 /**********************************************************************************/
 * creates matrix with coordinates for labels 
-* on exit: label_text : single string separated by `separator; of all labels
+* on exit: label_text : single string separated by `separator'; of all labels
 * on exit: label_coord: matrix with one row for each label and two columns containing x and y coordinates, 
-*      and "." for the first label of a new variable
-*      where the xcoordinates range from 1...(#variables( and the y coordinates from 1..(# labels for corresponding variable)
+*      and "." for the first label of a new variable, 5  for missing
+*      where the xcoordinates range from 1...(#variables) and the y coordinates from 1..(# labels for corresponding variable)
 * on exit: label_text: a single string with "y1 x1 y2 x2 ... y_nlabel x_nlabel". For later use with tokenize
 program define list_labels, rclass
 	version 7
-	syntax varlist , separator(string)
+	syntax varlist , separator(string) missing(int)
 
 	tempname one_ylabel label_coord
 
-	n_level_program `varlist'
+	n_level_program `varlist' , missing(`missing') // miss adds 1 level for _all_ vars
 	local n_level= r(n_level)
-		
+
+	// Strategy: if missing, and not all variables have missings, we may not populate the last rows of `label_coord'
 	matrix `label_coord'=J(`n_level',3,0)
+	mat colnames `label_coord' = value x  start_newvar
 	local label_text ""
 	local i=0	/* the ith variable (for x-axis) */
 	local offset=0  /* sum of the number of levels in previous x-variables */
+	local miss="" /* ensure visibility outside of if */
+	if (`missing'==1)  { local miss = "m" }
+	local missing_indicator=5 // needed in label_too_close
 	
 	foreach v of var `varlist' { 
 		local i= `i'+1
-		qui tab `v', matrow(`one_ylabel')
-	local n_one_ylabel=r(r)
-
-	local g : value label `v'
-	forval  j = 1/`n_one_ylabel' {
-		local w=`one_ylabel'[`j',1]
-		matrix `label_coord'[`offset'+`j',2]=`i'
-		matrix `label_coord'[`offset'+`j',1]=`w'
-		if (`j'==1) {  
-			* This marks when a new variable starts. Needed in decide_labels_too_close
-			matrix `label_coord'[`offset'+`j',3]=.
-		}
-		if "`g'"!="" {
-			local l : label `g' `w'
-			if ("`l'"=="") {
-				di as error "A label value for `g' has only white space, creating problems"
-				di as res ""  // any subsequent statements are in result mode (in black)
+		qui tab `v', matrow(`one_ylabel') `miss'   // unique value for missing, if present, is "."
+		local n_one_ylabel=r(r)
+		local g : value label `v'   // value label does not include missing
+		forval  j = 1/`n_one_ylabel' {
+			local w=`one_ylabel'[`j',1]
+			matrix `label_coord'[`offset'+`j',2]=`i'  // i^th variable
+			matrix `label_coord'[`offset'+`j',1]=`w'  // value of label, or . for missing
+			if (`j'==1) {  
+				* This marks when a new variable starts. Needed in decide_labels_too_close
+				matrix `label_coord'[`offset'+`j',3]=.
 			}
-			local label_text "`label_text'`l'`separator'"
+			if "`g'"!="" {
+				local l : label `g' `w'
+				if ("`l'"=="") {
+					di as error "A label value for `g' has only white space, creating problems"
+					di as res ""  // any subsequent statements are in result mode (in black)
+				}
+				else if ("`l'"==".") {  // values not in the valuelabel are simply repeated, including "." 
+					local l="missing"
+					matrix `label_coord'[`offset'+`j',3]=`missing_indicator'
+					matrix `label_coord'[`offset'+`j',1]=0 // height coordinate of missing = 0 (rather than ".").
+				}
+				local label_text "`label_text'`l'`separator'"
+			}
+			else {	
+				/* format numbers to display */
+				local format_w=string(`w',"%6.0g") 
+				local label_text "`label_text'`format_w'`separator'"
+			}
 		}
-		else {	
-			/* format numbers to display */
-			local format_w=string(`w',"%6.0g") 
-			local label_text "`label_text'`format_w'`separator'"
-		}
-	   }
-	   local offset=`offset'+`n_one_ylabel'
+		local offset=`offset'+`n_one_ylabel' 
 	}
+
 	return matrix label_coord `label_coord'
-	return local label_text `"`label_text'"' 
-
+	return local label_text `"`label_text'"'
 end 
+/**********************************************************************************/
+* creates matrix with univariate frequencies to all labels, separately by color
+* 	the rows of the matrix MUST Correspond to those in `label_coord'
+*	The first section of the matrix is for color 1 , followed by rows for color 2, ETC.   
+* on input: n_colors  : number of colors
+* on exit: uni_matrix: matrix with one row for each label/color combination with four columns:
+*		1 cum. proportion,  2 Variable index,  3  "." for the first label of a new variable, 4 Colour, 5 proportion by color
+program  create_uni_matrix, rclass
+	version 17
+	syntax varlist , ncolors(int) colorvar(str) missing(int)
 
+	tempname one_yfreq two_freq uni_matrix
+
+	// strategy:
+	// n_level has the sum of all levels, adding +1 for *all vars
+	// We may not populate the last rows for a given color if some vars do not have missings
+	// However, the next color always starts after n_level rows
+	n_level_program `varlist',  missing(`missing')   //missing: count +1 for *all* vars
+	local n_level= r(n_level)
+	local nrow=`n_level'*`ncolors'
+		
+	matrix `uni_matrix'=J(`nrow',5,0)
+	matrix colnames `uni_matrix'= cumprop variable  indicator color  prop
+	local i=0	/* the ith variable (for x-axis) */
+	local offset=0  /* sum of the number of levels in previous x-variables */
+	local offset_color= -`n_level'
+	local miss="" // ensure visibility outside of "if"
+	if (`missing')  { 
+		local miss="m"
+	}
+	
+	// color must be the outer loop
+	forval c = 1/`ncolors' {
+		//reset offset because may not have used all rows: if `missing' not all vars have missing values.
+		local offset_color = `offset_color' + `n_level' 
+		local offset= `offset_color'   // offset is changed below; need separate offset_color
+		local i=0  // new color, start with 1st variable again
+		foreach v of var `varlist' { 
+			local i= `i'+1
+			
+			// cumulative frequencies/proportions
+			qui tab `v', matcell(`one_yfreq') `miss'	//mirrors tab,matrow in program list_labels
+														//Crucial, achieves the same order 
+			local one_sum=r(N)
+			local n_one_yfreq=r(r)   // if `missing', adds 1 only if this particular var has missing 
+			matrix `one_yfreq'=`one_yfreq'/`one_sum'   // turn frequencies to proportions 
+
+			// frequencies/proportions by color
+			qui tab `v' `colorvar', matcell(`two_freq') `miss' //Crucial, achieves the same order
+			local one_sum=r(N) // probably redundant
+			matrix `two_freq'=`two_freq'/`one_sum' ///divide by total sum; because colors get separate space
+
+			forval  j = 1/`n_one_yfreq' {
+				local w=`one_yfreq'[`j',1]   // vector from one-way tab
+				local w2=`two_freq'[`j',`c'] // matrix from two-way tab
+				matrix `uni_matrix'[`offset'+`j',2]=`i'  //variable index
+				matrix `uni_matrix'[`offset'+`j',1]=`w'  //cumulative proportion
+				matrix `uni_matrix'[`offset'+`j',4]=`c'  //color
+				matrix `uni_matrix'[`offset'+`j',5]=`w2'  //proportion individual bar by color
+				if (`j'==1) {  
+					* This marks when a new variable (or new color) starts. May not be needed; 
+					* but I kept it analogous to matrix  `label_coord'
+					matrix `uni_matrix'[`offset'+`j',3]=.
+				}
+			}
+			local offset=`offset'+`n_one_yfreq'
+		}
+	}
+
+	return matrix uni_matrix `uni_matrix'
+	
+end 
 /**********************************************************************************/
 program define n_level_program, rclass
 	version 7
 	* compute the sum of the number of levels of all variables
 	* each level later corresponds to a label
-	syntax varlist 
+	* if missing , add one category for EACH var, even if that var does not have missings
+	syntax varlist , missing(int)
 
 	* calc the sum of number of levels of all vars
 	local n_level=0
@@ -379,10 +594,18 @@ program define n_level_program, rclass
 		  local temp= r(r)
 		local n_level=`n_level' + `temp'
 	}
+
+	if (`missing') {
+		local n_var : word count `varlist'
+		local n_level= `n_level'+ `n_var'   // add one missing for each variable
+	}
+
 	/* I used to set matsize here,
 	 but in modern flavours of stata "set matsize" is obsolete
 	 Stata flavour determines matsize (see help limits) */
+
 	return local n_level `n_level'
+	
 
 end 
 /**********************************************************************************/
@@ -457,7 +680,7 @@ program define gen_colorgroup
 			qui gen_colorgroup_num , hivar(`hivar') hivalues(`hivalues')  //numeric variable
 		}
 		else {
-			gen_colorgroup_str , hivar(`hivar') hivalues(`hivalues')  //string variable
+			qui gen_colorgroup_str , hivar(`hivar') hivalues(`hivalues')  //string variable
 		} 
 	}
 end
@@ -520,6 +743,47 @@ program define gen_colorgroup_prefix
 	qui replace colorgroup=2 if `hivar' `hiprefix' `hivalues' & !missing(`hivar')
 end
 /**********************************************************************************/
+// copy colour list For univariate boxes 
+program copy_uni_colorlist, rclass 
+	version 18
+	syntax  , colorlist(str) 
+	
+	local uni_colorlist=""
+	local ii=0
+	foreach w of local colorlist {
+		local ii= `ii'+1
+		if `ii'==1 {
+			local uni_colorlist="gray%20 " 
+		}
+		else {
+			local uni_colorlist="`uni_colorlist'" + "`w' " 
+		}
+	}
+	return local uni_colorlist "`uni_colorlist'"
+end 
+/**********************************************************************************/
+// create colour list For univariate boxes 
+program create_uni_colorlist, rclass 
+	version 18
+	syntax  , colorlist(str) miss(int) [ hivar(str) hivalues(str)  uni_colorlist(str) ]
+	
+	if (`"`uni_colorlist'"')=="" {
+		copy_uni_colorlist, colorlist(`"`colorlist'"')
+		local uni_colorlist =r(uni_colorlist)
+	}
+	
+	if ("`hivar'"!="") { 
+		check_highlight_all_levels , hivar(`hivar') hivalues(`hivalues') miss(`miss')
+		local highlight_all_levels=r(highlight_all_levels)
+		if (`highlight_all_levels') {
+			// remove default color from uni_colorlist
+			// this works even with `"gray  "50 40 80" one two three"' as long as the first word is a normal word
+			local uni_colorlist : subinstr local uni_colorlist "`: word 1 of `uni_colorlist''" "", all
+		}
+	}
+	return local uni_colorlist "`uni_colorlist'"
+end 
+/**********************************************************************************/
 program define computeylablimit, rclass
 	version 7
 	* compute maximum and minimum values for y to define graph region ylab
@@ -579,6 +843,8 @@ end
 * xlabnum		 :   needed to construct xlabel
 * graphx 		 : name of x variable for plotting
 * addlabeltext   : string for adding labels:  text("ypos1 xpos1 "text1"  ypos2 xpos2 "text2" [...])
+* uni_yhi uni_ylo uni_x, uni_color: Variable names to plot Univariate bars 
+* uni_width		 : width  / space of the univariate area 
 * colorlist		 : list of colors to be used
 * outline		 : 1/0: whether or not boxes should have an outline (using lcolor)
 *
@@ -594,10 +860,12 @@ end
 *		and unclear whether reducing the number of variables improves anything.
 
 program define GraphBoxColor 
-	version 14.2
+	//version 14.2
+	version 18
 	syntax , xstart(str) xend(str) ystart(str) yend(str) width(str) graphx(str) ///
 		ylabmin(real) ylabmax(real) xlab_num(str) shape(str) outline(int) ///
 		aspectratio(real) ar_x(real) xrange(real) yrange(real) ///
+		uni_ylo(str) uni_yhi(str)  uni_x(str) uni_color(str) uni_width(real) uni_colorlist(str) ///
 		[  colorlist(str) addlabeltext(str) yline(str)  options(str)  ]
 
 	tempvar w increment
@@ -727,12 +995,29 @@ program define GraphBoxColor
 		aspect(`aspectratio') `options'  ||  `addplot' `addlabeltext'
 	*/
 	
+	//@@ There is a STATA bug when using colorvar() with temporary variables 
+	//as a workaround I'm defining a permanent variable until Stata fixes this issue
+	qui gen uni_color_var=`uni_color'
+	
+
 	twoway scatter std_y `graphx', ///
 		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
 		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
 		plotregion(style(none) m(zero)) ///
-		aspect(`aspectratio') `options'  ||  `addplot' `addlabeltext'
+		aspect(`aspectratio') `options'  ///
+		||  `addplot' `addlabeltext'  ///
+		|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
+			colorvar(uni_color_var) colordiscrete colorlist(`uni_colorlist') clegend(off) 
 
+
+//di "uni_colorlist `uni_colorlist' " 
+/* temporary for debuggin August 12, 2024 @@
+	twoway scatter std_y `graphx', ///
+		|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
+			colorvar(uni_color_var) colordiscrete colorlist(`uni_colorlist') clegend(off) 
+list std_y `graphx' `uni_ylo' `uni_yhi' `uni_x' uni_color_var ,noobs clean
+*/
+	cap drop uni_color_var
 
 	// These options below produce a graph without any margins except for the x-labels at the bottom
 	// scatter y x,plotr(m(zero)) graphr(m(zero)) ytitle("") xtitle("") yscale(off) xscale(noline) 
@@ -1120,6 +1405,30 @@ program define check_sufficient_colors
 		}
 	}
 end
+///////////////////////////////////////////////////////////////////////////////////////////
+//  purpose: highlighting all values? 
+//			if so, need to remove default color from uni_colorlist later 
+program define check_highlight_all_levels, rclass
+	version 18
+	syntax, miss(int)  [ hivar(str) HIVALues(string)  ] 
+
+	if (`miss') {
+		qui tab `hivar',m
+	}
+	else {
+		qui tab `hivar'
+	}
+	local levels=r(r)
+	
+	// counts number of hivalues. Does not check whether values exist in hivar (could lead to an error)
+	local hicount: word count `hivalues'
+	
+	local highlight_all_levels=0
+	if (`hicount' == `levels') {
+		local highlight_all_levels =1
+	}
+	return local highlight_all_levels  `highlight_all_levels' 
+end
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // purpose :  	transform variables to have a range between 0 and 100, 
 //				compute corresponding label positions
@@ -1160,16 +1469,18 @@ program transform_variable_range , rclass
 			local range=`globalrange'
 			local min=`globalmin'
 		}
+		local my_y  "std_y`i'"
+		qui gen `my_y'=`v'   
 		if (`miss') {
 			* missing option specified 
 			local yline "yline(4, lcolor(black))" 	// horizontal line to separate missing values
-			local missval=`min'-`rangeexpansion'*`range'
-			qui replace `v'=`missval' if `v'==.
+			local missval=`min'-`rangeexpansion'*`range' // set missval a little bit below minimum
+			// if `v' appears multiple times in varlist, it is important to change `my_y' and not `v' itself
+			qui replace `my_y'=`missval' if `my_y'==.
 			local min=`missval'  /* redefine minimum value and range */
 			local range=`range'*(1+`rangeexpansion')
 		}	
-		local my_y  "std_y`i'"
-		qui gen `my_y' = (`v'-`min')/ `range' * 100
+		qui replace `my_y' = (`my_y'-`min')/ `range' * 100
 		
 		if `addlabel'==1 {
 			local n_labels = rowsof(`mat_label_coord') 
@@ -1197,8 +1508,15 @@ program decide_label_too_close
 
 	local n_labels = rowsof(`mat_label_coord') 
 	local add_dist=0  // previous distance to previously plotted label
+	local missing_indicator=5
 	forval j = 2 / `n_labels' {
-		if (`mat_label_coord'[`j',3]!=.) {
+		if (`mat_label_coord'[`j',3]==`missing_indicator') { 
+			// missing value label
+			matrix `mat_label_coord'[`j',3]= 1
+			matrix `mat_label_coord'[`offset'+`j',1]=0 // was reset during transformation, I think
+			local add_dist=0 // may not be needed
+		}
+		else if (`mat_label_coord'[`j',3]!=.) {
 			/* if not the first label of a new variable,  distance = y_current - y_last */
 			local distance= `add_dist' + (`mat_label_coord'[`j',1]- `mat_label_coord'[`j'-1,1])
 			if (`distance'<`min_distance') {
@@ -1246,3 +1564,4 @@ end
 //*! 1.4.3   Apr 05, 2024: allow hivalues with <=,>= signs , e.g. hivalues(>=2) 
 //*! 1.4.4   Jul 22, 2024: accommodate scheme stcolor Stata18 adding xlab(,nogrid) ylab(,nogrid)
 //*! 1.4.5   Jul 23, 2024: documentation on aspect ratio
+//*! 2.0.0   Sep 5, 2024: add univariate bars
