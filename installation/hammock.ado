@@ -1,5 +1,5 @@
 program define hammock
-*! 2.0.0 Sep 5, 2024: add univariate bars
+*! 2.0.1 Sep 12, 2024: fixed bug related to labels with missing values
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -99,13 +99,10 @@ program define hammock
 
 	* transform variables' range to be between 0 and 100, also adjust matrix w label coordinates
 	// Note this computes the midpoints (between 0 and 100), the upper/lower points may be a little wider
-	// Missing values are initially assigned -10, but after standardization (std_y) they equal 0
+	// Missing values after standardization (std_y) equal 0
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
 	transform_variable_range `varlist', same(`same') addlabel(`addlabel') ///
 		rangeexpansion(`rangeexpansion') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
-
-	// local yline=r(yline) //not currently using yline; 
-							//such a line can be passed directly as optional argument
 	if (`addlabel')  decide_label_too_close ,  mat_label_coord("`label_coord'") min_distance(`label_min_dist')
 
 	* construct xlabel
@@ -459,7 +456,7 @@ program define list_labels, rclass
 	n_level_program `varlist' , missing(`missing') // miss adds 1 level for _all_ vars
 	local n_level= r(n_level)
 
-	// Strategy: if missing, and not all variables have missings, we may not populate the last rows of `label_coord'
+	// Strategy: if display missing, and not all variables have missings, we may not populate the last rows of `label_coord'
 	matrix `label_coord'=J(`n_level',3,0)
 	mat colnames `label_coord' = value x  start_newvar
 	local label_text ""
@@ -467,7 +464,7 @@ program define list_labels, rclass
 	local offset=0  /* sum of the number of levels in previous x-variables */
 	local miss="" /* ensure visibility outside of if */
 	if (`missing'==1)  { local miss = "m" }
-	local missing_indicator=5 // needed in label_too_close
+	local missing_indicator=5 // needed  later in label_too_close
 	
 	foreach v of var `varlist' { 
 		local i= `i'+1
@@ -483,6 +480,7 @@ program define list_labels, rclass
 				matrix `label_coord'[`offset'+`j',3]=.
 			}
 			if "`g'"!="" {
+				/* value label present */ 
 				local l : label `g' `w'
 				if ("`l'"=="") {
 					di as error "A label value for `g' has only white space, creating problems"
@@ -491,13 +489,16 @@ program define list_labels, rclass
 				else if ("`l'"==".") {  // values not in the valuelabel are simply repeated, including "." 
 					local l="missing"
 					matrix `label_coord'[`offset'+`j',3]=`missing_indicator'
-					matrix `label_coord'[`offset'+`j',1]=0 // height coordinate of missing = 0 (rather than ".").
 				}
 				local label_text "`label_text'`l'`separator'"
 			}
 			else {	
-				/* format numbers to display */
+				/* no value label present */
 				local format_w=string(`w',"%6.0g") 
+				if ("`format_w'"==".")  {
+					local format_w="missing"
+					matrix `label_coord'[`offset'+`j',3]=`missing_indicator'
+				}
 				local label_text "`label_text'`format_w'`separator'"
 			}
 		}
@@ -998,7 +999,6 @@ program define GraphBoxColor
 	//@@ There is a STATA bug when using colorvar() with temporary variables 
 	//as a workaround I'm defining a permanent variable until Stata fixes this issue
 	qui gen uni_color_var=`uni_color'
-	
 
 	twoway scatter std_y `graphx', ///
 		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
@@ -1473,27 +1473,28 @@ program transform_variable_range , rclass
 		qui gen `my_y'=`v'   
 		if (`miss') {
 			* missing option specified 
-			local yline "yline(4, lcolor(black))" 	// horizontal line to separate missing values
 			local missval=`min'-`rangeexpansion'*`range' // set missval a little bit below minimum
 			// if `v' appears multiple times in varlist, it is important to change `my_y' and not `v' itself
 			qui replace `my_y'=`missval' if `my_y'==.
 			local min=`missval'  /* redefine minimum value and range */
 			local range=`range'*(1+`rangeexpansion')
 		}	
-		qui replace `my_y' = (`my_y'-`min')/ `range' * 100
-		
+		qui replace `my_y' = (`my_y'-`min')/ `range' * 100   // standardize to min=0, max=100 
 		if `addlabel'==1 {
 			local n_labels = rowsof(`mat_label_coord') 
 			forval ii = 1 / `n_labels' {
-				if (`mat_label_coord'[`ii',2]==`i') { 
-					/* label belongs to variable `v' */
-					matrix `mat_label_coord'[`ii',1]= (`mat_label_coord'[`ii',1] -`min')/ `range' * 100
+				if (`mat_label_coord'[`ii',2]==`i') { /* label belongs to variable `v' */
+					if (`mat_label_coord'[`ii',1]!=.) {
+						matrix `mat_label_coord'[`ii',1]= (`mat_label_coord'[`ii',1] -`min')/ `range' * 100
+					}
+					else { //missing value
+						matrix `mat_label_coord'[`ii',1]= 0   // standardized range is from 0-100
+					}
 				}
 			}
 		}
 		
 	}
-	return local yline `"`yline'"'
 end
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // purpose :  	decide whether the  label distance on the y-axis is too close. If yes, set mat_label_coord[,3]==0
@@ -1565,3 +1566,4 @@ end
 //*! 1.4.4   Jul 22, 2024: accommodate scheme stcolor Stata18 adding xlab(,nogrid) ylab(,nogrid)
 //*! 1.4.5   Jul 23, 2024: documentation on aspect ratio
 //*! 2.0.0   Sep 5, 2024: add univariate bars
+//*! 2.0.1 Sep 12, 2024: fixed bug related to labels with missing values
