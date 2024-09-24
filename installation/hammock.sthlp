@@ -35,15 +35,16 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synopt :{opt label_min_dist(real)}} Specify minimum distance between two labels on the same axis{p_end}
 {synopt :{opt labelopt(str)}} Pass options to {it:{help added_text_options}}, e.g. to manipulate label text size{p_end}
 {synopt :{opt uni_fraction(real)}} For univariate bars, proportion of vertical space covered with bars {p_end}
+{synopt :{opt label_format(str)}} (rarely needed) Display format of numerical labels {p_end}
 
 {syntab :Layout of boxes in between axes}
 {synopt :{opt bar:width(real)}} Change width of the connecting boxes to reduce clutter {p_end}
 {synopt :{opt minbar:freq(int)}} Specify minimum box width {p_end}
 {synopt :{opt shape(str)}} Box shape: "parallelogram" or "rectangle" (default) {p_end}
-{synopt :{opt no_outline}} Do not outline the edges of semi-translucent boxes {p_end}
+{synopt :{opt no_outline}} (rarely needed) Do not outline the edges of semi-translucent boxes {p_end}
 
 {syntab :Other options}
-{synopt :{opt aspect:ratio(real)}} Aspect ratio of the plot region {p_end}
+{synopt :{opt aspect:ratio(real)}} (rarely needed) Aspect ratio of the plot region {p_end}
 {synopt :{opt same:scale(varlist)}} Use the same axis scale for each variable specified {p_end}
 {synopt :graph_options} Specify additional options passed to  {it:graph, twoway}  {p_end}
 {synoptline}
@@ -196,6 +197,11 @@ By default, label size is "medium". If option {it:label} is not specified,  opti
 By default, {it:uni_fraction(0.5)}. This option can be used to avoid overlapping univariate bars
 or to improve layout according to user taste.
 
+{phang}
+{opt label_format(string)} For numerical labels, display format of the numerical value. 
+By default,   {it:label_format(%6.0g)}. 
+See {it:{ help format}} for other display formats.
+This option has no effect on string labels.
 
 {dlgtab:Layout of boxes in between axes}
  
@@ -229,7 +235,7 @@ Focusing on the end points of the boxes, can create the illusion that there are 
 than there really are. 
   
 {phang}
-{opt no_outline} (rarely needed) In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
+{opt no_outline}  In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
 are drawn with an outline that is not translucent.
 If there are several overlapping colors, it may be visually simpler to show the translucent box 
 without outlining the edges of the box. This option removes the outline.

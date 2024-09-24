@@ -1,9 +1,9 @@
 program define hammock
-*! 2.0.1 Sep 12, 2024: fixed bug related to labels with missing values
+*! 2.0.2 Sep 20, 2024: added label_format
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
-		LABel labelopt(str) label_min_dist(real 3.0) ///
+		LABel labelopt(str) label_min_dist(real 3.0) label_format(str) ///
 		SAMEscale(varlist)  ///
 		uni_fraction(real .5) uni_colorlist(str) ///
 		ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline  * ]
@@ -88,7 +88,7 @@ program define hammock
 	local uni_colorlist= r(uni_colorlist) 
 
 	if `addlabel'==1 {
-		list_labels `varlist', separator(`separator') missing(`missing')
+		list_labels `varlist', separator(`separator') missing(`missing') label_format(`"`label_format'"')
 		// matrix has 3 cols: 1 variable values/levels, 2 variable index in `varlist',3  ./0 to mark start of new var
 		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values 
 		local label_text  "`r(label_text)'" 
@@ -312,7 +312,7 @@ program  compute_addlabeltext, rclass
 
 	* the labels are overwriting the plot. Plot before the graphboxes 
 	local n_labels = rowsof(`mat_label_coord')
-	tokenize `label_text', parse(`separator')
+	tokenize "`label_text'", parse(`separator')
 	local addlabeltext="text("   // no space between "text" and "("
 	forval j=1/`n_labels' { 
 		if (`mat_label_coord'[`j',2] !=0 &  `mat_label_coord'[`j',3]!=0) { 
@@ -449,7 +449,7 @@ end
 * on exit: label_text: a single string with "y1 x1 y2 x2 ... y_nlabel x_nlabel". For later use with tokenize
 program define list_labels, rclass
 	version 7
-	syntax varlist , separator(string) missing(int)
+	syntax varlist , separator(string) missing(int) [ label_format(string) ]
 
 	tempname one_ylabel label_coord
 
@@ -495,6 +495,9 @@ program define list_labels, rclass
 			else {	
 				/* no value label present */
 				local format_w=string(`w',"%6.0g") 
+				if "`label_format'"!="" {
+					local format_w=string(`w',"`label_format'")
+				}
 				if ("`format_w'"==".")  {
 					local format_w="missing"
 					matrix `label_coord'[`offset'+`j',3]=`missing_indicator'
@@ -1566,4 +1569,5 @@ end
 //*! 1.4.4   Jul 22, 2024: accommodate scheme stcolor Stata18 adding xlab(,nogrid) ylab(,nogrid)
 //*! 1.4.5   Jul 23, 2024: documentation on aspect ratio
 //*! 2.0.0   Sep 5, 2024: add univariate bars
-//*! 2.0.1 Sep 12, 2024: fixed bug related to labels with missing values
+//*! 2.0.1   Sep 12, 2024: fixed bug related to labels with missing values
+//*! 2.0.2   Sep 20, 2024: added label_format
