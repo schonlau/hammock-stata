@@ -151,7 +151,7 @@ this is only relevant if the {it:hivar} is NOT part of {it:varlist}.
 {opt colorlist} specifies a list of colors to be used.  
 The first color in the list is the default color, the remainder is used for highlighting. 
 If unspecified, the color list is  
-"black red  blue teal  yellow sand maroon orange olive magenta".
+"gs10 red  blue teal  yellow sand maroon orange olive magenta".
 Color names are explained in {it:{help colorstyle}}.
 The color list should not be shorter than the number of values to be highlighted plus one (default color).
 
@@ -233,14 +233,13 @@ They also avoid the so-called reverse line-width illusion of the parallelogram:
 The vertical width of parallelogram-boxes with steep angles are larger than that of parallelogram-boxes with smaller angles. 
 Focusing on the end points of the boxes, can create the illusion that there are more observations in steep-angled parallelograms
 than there really are. 
-  
+
 {phang}
 {opt no_outline}  In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
 are drawn with an outline that is not translucent.
 If there are several overlapping colors, it may be visually simpler to show the translucent box 
 without outlining the edges of the box. This option removes the outline.
  This option only effects semi-translucent colors; it has no effect on regular colors (e.g. "red"). 
-  
 
 
 {dlgtab:Other options}
@@ -250,7 +249,6 @@ without outlining the edges of the box. This option removes the outline.
 also affects the space between the plot region and the available area. 
 If a long variable name displays partially outside the graph area, increasing the aspect ratio is 
 one way of ensuring variable names are fully visible. 
-  
 
 {phang}
 {opt samescale} specifies that for the list of variables specified each axis should have the same scale. 
@@ -261,7 +259,13 @@ but not all categories occur each at each time point.
 {phang}
 {it:graph_options} are options of {cmd: graph, twoway} other than 
 {cmd:symbol()} and {cmd:connect()}. 
-In particular,  the option {it: xlab(,labsize(vsmall))} makes variable names smaller and is sometimes useful.
+In particular, I have found the following options useful: 
+ {it: xlab(,labsize(vsmall))} makes variable names smaller. 
+ {it: xlabel(, angle(30))} angles the variable names (helps to avoid overlap).
+ You can add text such as {it: text(70 8 "America" "Emerging" "Asia" "Europe")}. 
+For the placement of the text, the range of the y-axis is roughly 0 to 100 
+(slightly larger when corners of boxes extend past 100; lower when missing values are present), 
+and the range of the x-axis is 1 to the number of variables.
 
 
 {title:Examples}
