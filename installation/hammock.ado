@@ -1,5 +1,5 @@
 program define hammock
-*! 2.0.2 Sep 20, 2024: added label_format
+*! 2.0.3 Sep 26, 2024: changed default color to gs10
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -8,7 +8,15 @@ program define hammock
 		uni_fraction(real .5) uni_colorlist(str) ///
 		ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline  * ]
 
-	confirm numeric variable `varlist'
+	foreach v of local varlist {
+		capture confirm numeric variable `v'
+		if _rc {
+			//action for string variables
+			di as error `"Variable "`v'" is not numeric. Please encode it first: "'
+			di as error "   encode `v', gen(new_varname)"
+			error 99
+		}
+	}
 
 	local missing = "`missing'" != ""
 	local addlabel= "`label'" != ""
@@ -28,7 +36,7 @@ program define hammock
 	local hivalues = r(hivalues)  // caution : overwrites hivalues
 	
 	check_sufficient_colors ,  hivar("`hivar'") hivalues("`hivalues'") colorlist(`"`colorlist'"') 
-	if ("`colorlist'"=="")	 local colorlist="black red  blue teal  yellow sand maroon orange olive magenta"
+	if ("`colorlist'"=="")	 local colorlist="gs10 red  blue teal  yellow sand maroon orange olive magenta"
 
 	* observations to use 
 	marksample touse , novarlist
@@ -89,7 +97,6 @@ program define hammock
 
 	if `addlabel'==1 {
 		list_labels `varlist', separator(`separator') missing(`missing') label_format(`"`label_format'"')
-		// matrix has 3 cols: 1 variable values/levels, 2 variable index in `varlist',3  ./0 to mark start of new var
 		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values 
 		local label_text  "`r(label_text)'" 
 		create_uni_matrix `varlist', ncolors(`ncolors') colorvar("colorgroup") missing(`missing') //univariate frequencies for each bar (separate by color)
@@ -187,7 +194,7 @@ program define hammock
 			label_text("`label_text'") separator(`separator') labelopt(`"`labelopt'"')
 		local addlabeltext=r(addlabeltext)  
 		add_unibars `yhi_uni' `ylo_uni' `x_uni' `color_uni', mat_label_coord(`label_coord') ///
-			mat_uni(`uni_matrix') missing("`missing'") uni_fraction(`uni_fraction') ncolors(`ncolors') 
+			mat_uni(`uni_matrix') uni_fraction(`uni_fraction') ncolors(`ncolors') 
 		local n_labels = rowsof(`label_coord')  //number of rows for one color
 		adjust_bar_placement `yhi_uni' `ylo_uni', n_labels(`n_labels') 
 
@@ -299,13 +306,9 @@ program iterate_width_range , rclass
 end 
 /**********************************************************************************/
 // compute_addlabeltext  (needed for GraphBoxColor)
-// input: mat_label_coord  is a matrix name. Matrix is manipulated. 
-//		yhi_uni, ylo_uni, x_uni : variables for univariate bars 
-//			Manipulations persist after this program closes.
-//			In this program the matrix is NOT changed
-// label_text (input): Shakespeare example: label_text="adult@adolescent@child@0@1@2@3@4@5@20@0@1@2@3@4@5@6@7@female@male@"
+// input: mat_label_coord:  is a matrix name.  The matrix is NOT changed
+// input: label_text: Shakespeare example: label_text="adult@adolescent@child@0@1@2@3@4@5@20@0@1@2@3@4@5@6@7@female@male@"
 // output: addlabeltext:   text("ypos1 xpos1 "text1"  ypos2 xpos2 "text2" [...])
-//			variables yhi_uni, ylo_uni, x_uni changed globally.
 program  compute_addlabeltext, rclass
 	version 16
 	syntax , mat_label_coord(str) missing(str) label_text(str) separator(str) [ labelopt(str) ]
@@ -330,7 +333,7 @@ program  compute_addlabeltext, rclass
 end 
 /**********************************************************************************/
 // compute vars (yhi,ylo,x,color) from matrices to add Univariate Frequency bars 
-//		If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
+//		Some bars may exceed [lower,upper]=[~0,~100]. (Elsewhere, adjust bar down or up) 
 // input: 
 //	mat_uni   		matrix With Univariate frequencies (For all colours,rows appended)
 //	mat_label_coord	Matrix with coordinates of labels (For the first colour only )
@@ -339,7 +342,7 @@ end
 //output 	variables yhi_uni, ylo_uni, x_uni,color_uni changed globally.
 program  add_unibars, rclass
 	version 18
-	syntax varlist (min=4 max=4), mat_label_coord(str) mat_uni(str) missing(str) ///
+	syntax varlist (min=4 max=4), mat_label_coord(str) mat_uni(str) ///
 		ncolors(int) uni_fraction(real)
 
 	tokenize `varlist'
@@ -443,10 +446,11 @@ end
 /**********************************************************************************/
 * creates matrix with coordinates for labels 
 * on exit: label_text : single string separated by `separator'; of all labels
-* on exit: label_coord: matrix with one row for each label and two columns containing x and y coordinates, 
-*      and "." for the first label of a new variable, 5  for missing
-*      where the xcoordinates range from 1...(#variables) and the y coordinates from 1..(# labels for corresponding variable)
-* on exit: label_text: a single string with "y1 x1 y2 x2 ... y_nlabel x_nlabel". For later use with tokenize
+* on exit: label_coord: matrix with one row for each label 
+*    matrix has 3 cols: 
+*    1 variable values/levels (y-coordinate)  1..(# labels for corresponding variable)
+*    2 variable index in `varlist'  (x-coordinate) 1...(#variables) 
+*    3  takes values "." (start of a new variable, i.e. the first label of a new variable) and "5"  (missing indicator) 
 program define list_labels, rclass
 	version 7
 	syntax varlist , separator(string) missing(int) [ label_format(string) ]
@@ -1571,3 +1575,4 @@ end
 //*! 2.0.0   Sep 5, 2024: add univariate bars
 //*! 2.0.1   Sep 12, 2024: fixed bug related to labels with missing values
 //*! 2.0.2   Sep 20, 2024: added label_format
+//*! 2.0.3   Sep 26, 2024: changed default color to gs10
