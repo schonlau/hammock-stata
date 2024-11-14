@@ -1,5 +1,5 @@
 program define hammock
-*! 2.0.3 Sep 26, 2024: changed default color to gs10
+*! 2.0.4 Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -47,11 +47,11 @@ program define hammock
 
 	preserve 
 	qui keep if `touse' 
-	tempvar id std_ylag width graphxlag colorgroup
-	tempname label_coord uni_matrix
+	tempvar id std_ylag width graphxlag colorgroup 
+	tempname label_coord uni_matrix 
 	qui gen long `id'  = _n 
 	local N = _N
-	local separator "@"  /*one letter only, separates variable names */
+	local label_text="label_text"   // defines the variable to be used in frame connectors
 	
 	// Aspectratio
 	// see "help region_options", "help aspect_option", see Glossary in Graphics manual
@@ -95,12 +95,15 @@ program define hammock
 		hivar(`hivar') hivalues("`hivalues'")
 	local uni_colorlist= r(uni_colorlist) 
 
-	if `addlabel'==1 {
-		list_labels `varlist', separator(`separator') missing(`missing') label_format(`"`label_format'"')
-		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values 
-		local label_text  "`r(label_text)'" 
+	cap frame drop connectors
+	frame create connectors   // only used if `addlabel'; but safer to create always
+	if `addlabel'==1 {		
+		list_labels `varlist', label_text(`label_text') missing(`missing') ///
+			label_format(`"`label_format'"') 
+		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values  
 		create_uni_matrix `varlist', ncolors(`ncolors') colorvar("colorgroup") missing(`missing') //univariate frequencies for each bar (separate by color)
 		matrix `uni_matrix' = r(uni_matrix)
+		
 	}
 
 
@@ -189,15 +192,16 @@ program define hammock
 	qui gen `color_uni'=.
 	local uni_width= .8*`varnamewidth'
 	
+	
 	if `addlabel'==1 {
 		compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
-			label_text("`label_text'") separator(`separator') labelopt(`"`labelopt'"')
-		local addlabeltext=r(addlabeltext)  
+			label_text("`label_text'") labelopt(`"`labelopt'"')
+		local addlabeltext=r(addlabeltext) 
+		
 		add_unibars `yhi_uni' `ylo_uni' `x_uni' `color_uni', mat_label_coord(`label_coord') ///
 			mat_uni(`uni_matrix') uni_fraction(`uni_fraction') ncolors(`ncolors') 
 		local n_labels = rowsof(`label_coord')  //number of rows for one color
 		adjust_bar_placement `yhi_uni' `ylo_uni', n_labels(`n_labels') 
-
 //local tmpmax= min(_N,40)
 //di "after addlabel: uni_ylo uni_yhi uni_x uni_color" 
 //list  `ylo_uni' `yhi_uni' `x_uni' `color_uni' in 1/`tmpmax'
@@ -239,6 +243,7 @@ program define hammock
 		 uni_width(`uni_width') uni_colorlist(`uni_colorlist')
 	// matrix `label_coord' is still around but not needed in GraphBoxColor 
 	
+	frame drop connectors
 end
 /**********************************************************************************/
 program iterate_width_range , rclass
@@ -307,23 +312,22 @@ end
 /**********************************************************************************/
 // compute_addlabeltext  (needed for GraphBoxColor)
 // input: mat_label_coord:  is a matrix name.  The matrix is NOT changed
-// input: label_text: Shakespeare example: label_text="adult@adolescent@child@0@1@2@3@4@5@20@0@1@2@3@4@5@6@7@female@male@"
+// label_text:   name of the variable in frame connectors that holds the labels 
 // output: addlabeltext:   text("ypos1 xpos1 "text1"  ypos2 xpos2 "text2" [...])
 program  compute_addlabeltext, rclass
 	version 16
-	syntax , mat_label_coord(str) missing(str) label_text(str) separator(str) [ labelopt(str) ]
+	syntax , mat_label_coord(str) missing(str) label_text(str) [ labelopt(str) ]
 
 	* the labels are overwriting the plot. Plot before the graphboxes 
 	local n_labels = rowsof(`mat_label_coord')
-	tokenize "`label_text'", parse(`separator')
 	local addlabeltext="text("   // no space between "text" and "("
 	forval j=1/`n_labels' { 
 		if (`mat_label_coord'[`j',2] !=0 &  `mat_label_coord'[`j',3]!=0) { 
 			/* 2nd col==0 crucial if matrix has empty rows, otherwise graph disappears*/
-			local pos=`j'*2-1  /* positions 1,3,5,7, ...  */
 			// text to plot ="``pos''"      y = `mat_label_coord'[`j',1]        x= `mat_label_coord'[`j',2]  
 			// the matrix needs to be evaluated as  `=matrixelem'  ; otherwise just the name of the matrix elem appears
-			local addlabeltext= `"`addlabeltext'`=`mat_label_coord'[`j',1]' `=`mat_label_coord'[`j',2]' "``pos''" "'
+			local addlabeltext= ///
+			`"`addlabeltext'`=`mat_label_coord'[`j',1]' `=`mat_label_coord'[`j',2]' "`=_frval(connectors,`label_text',`j')'"  "'
 		}
 	}
 
@@ -444,32 +448,37 @@ program adjust_bar_placement
 	}
 end 
 /**********************************************************************************/
-* creates matrix with coordinates for labels 
-* on exit: label_text : single string separated by `separator'; of all labels
+* creates matrix with coordinates for labels and "label_text" variable in frame connectors
+* on exit: `label_text' : variable in frame connectors with one row for each label 
 * on exit: label_coord: matrix with one row for each label 
 *    matrix has 3 cols: 
 *    1 variable values/levels (y-coordinate)  1..(# labels for corresponding variable)
 *    2 variable index in `varlist'  (x-coordinate) 1...(#variables) 
 *    3  takes values "." (start of a new variable, i.e. the first label of a new variable) and "5"  (missing indicator) 
 program define list_labels, rclass
-	version 7
-	syntax varlist , separator(string) missing(int) [ label_format(string) ]
+	version 18
+	syntax varlist , label_text(str) missing(int) [ label_format(string) ]
 
 	tempname one_ylabel label_coord
 
 	n_level_program `varlist' , missing(`missing') // miss adds 1 level for _all_ vars
 	local n_level= r(n_level)
-
+	
 	// Strategy: if display missing, and not all variables have missings, we may not populate the last rows of `label_coord'
 	matrix `label_coord'=J(`n_level',3,0)
 	mat colnames `label_coord' = value x  start_newvar
-	local label_text ""
+	// connectors has one obs per connector (bivariate box)
+	qui frame connectors: set obs `n_level'
+	qui frame connectors: gen `label_text'=""
+
 	local i=0	/* the ith variable (for x-axis) */
 	local offset=0  /* sum of the number of levels in previous x-variables */
 	local miss="" /* ensure visibility outside of if */
-	if (`missing'==1)  { local miss = "m" }
+	if (`missing'==1)  { 
+		local miss = "m" 
+	}
 	local missing_indicator=5 // needed  later in label_too_close
-	
+
 	foreach v of var `varlist' { 
 		local i= `i'+1
 		qui tab `v', matrow(`one_ylabel') `miss'   // unique value for missing, if present, is "."
@@ -494,7 +503,7 @@ program define list_labels, rclass
 					local l="missing"
 					matrix `label_coord'[`offset'+`j',3]=`missing_indicator'
 				}
-				local label_text "`label_text'`l'`separator'"
+				qui frame connectors: replace `label_text' = "`l'"  if _n==`offset'+`j' 
 			}
 			else {	
 				/* no value label present */
@@ -506,14 +515,12 @@ program define list_labels, rclass
 					local format_w="missing"
 					matrix `label_coord'[`offset'+`j',3]=`missing_indicator'
 				}
-				local label_text "`label_text'`format_w'`separator'"
+				qui frame connectors: replace `label_text' = "`format_w'"  if _n==`offset'+`j'
 			}
 		}
 		local offset=`offset'+`n_one_ylabel' 
-	}
-
+	} 
 	return matrix label_coord `label_coord'
-	return local label_text `"`label_text'"'
 end 
 /**********************************************************************************/
 * creates matrix with univariate frequencies to all labels, separately by color
@@ -1012,18 +1019,10 @@ program define GraphBoxColor
 		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
 		plotregion(style(none) m(zero)) ///
 		aspect(`aspectratio') `options'  ///
-		||  `addplot' `addlabeltext'  ///
+		||  `addplot'  `addlabeltext' ///
 		|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
 			colorvar(uni_color_var) colordiscrete colorlist(`uni_colorlist') clegend(off) 
-
-
-//di "uni_colorlist `uni_colorlist' " 
-/* temporary for debuggin August 12, 2024 @@
-	twoway scatter std_y `graphx', ///
-		|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
-			colorvar(uni_color_var) colordiscrete colorlist(`uni_colorlist') clegend(off) 
-list std_y `graphx' `uni_ylo' `uni_yhi' `uni_x' uni_color_var ,noobs clean
-*/
+ 
 	cap drop uni_color_var
 
 	// These options below produce a graph without any margins except for the x-labels at the bottom
@@ -1576,3 +1575,4 @@ end
 //*! 2.0.1   Sep 12, 2024: fixed bug related to labels with missing values
 //*! 2.0.2   Sep 20, 2024: added label_format
 //*! 2.0.3   Sep 26, 2024: changed default color to gs10
+//*! 2.0.4 Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables

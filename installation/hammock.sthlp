@@ -97,7 +97,7 @@ Installation via SSC:
 requests value {it:{help labels}} 
  to be displayed on the graph. For variables for which value labels are not defined,  
 the values themselves are displayed. This makes it easier to identify which category
-is displayed where. Value labels must not not contain the characters "@" or ",".
+is displayed where. 
 
 {phang}
 {opt missing} specifies that "missing value" is a separate category. 
