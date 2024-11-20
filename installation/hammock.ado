@@ -1,5 +1,5 @@
 program define hammock
-*! 2.0.4 Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables
+*! 2.0.5 Nov 18, 2024: fixed bug: missing lowest non-missing uni-bar pushed into missing
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) SPAce(real 0.0) ///
@@ -19,6 +19,7 @@ program define hammock
 	}
 
 	local missing = "`missing'" != ""
+	local missing_value=5  // label_coord[.,3]=`missing_value' to indicate missing values for that category
 	local addlabel= "`label'" != ""
 	local same = "`samescale'" !=""
 	local outline = 1- ("`_outline'" == "no_outline") //options that start with "no" have different syntax 
@@ -98,12 +99,11 @@ program define hammock
 	cap frame drop connectors
 	frame create connectors   // only used if `addlabel'; but safer to create always
 	if `addlabel'==1 {		
-		list_labels `varlist', label_text(`label_text') missing(`missing') ///
-			label_format(`"`label_format'"') 
+		list_labels `varlist', label_text(`label_text') missing(`missing')  ///
+			label_format(`"`label_format'"') missing_value(`missing_value')
 		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values  
 		create_uni_matrix `varlist', ncolors(`ncolors') colorvar("colorgroup") missing(`missing') //univariate frequencies for each bar (separate by color)
 		matrix `uni_matrix' = r(uni_matrix)
-		
 	}
 
 
@@ -113,7 +113,9 @@ program define hammock
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
 	transform_variable_range `varlist', same(`same') addlabel(`addlabel') ///
 		rangeexpansion(`rangeexpansion') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
-	if (`addlabel')  decide_label_too_close ,  mat_label_coord("`label_coord'") min_distance(`label_min_dist')
+	local min_nonmissing= r(min_nonmissing)
+	if (`addlabel')  decide_label_too_close, mat_label_coord("`label_coord'") min_distance(`label_min_dist') ///
+		missing_value(`missing_value') 
 
 	* construct xlabel
 	local i=1
@@ -201,10 +203,13 @@ program define hammock
 		add_unibars `yhi_uni' `ylo_uni' `x_uni' `color_uni', mat_label_coord(`label_coord') ///
 			mat_uni(`uni_matrix') uni_fraction(`uni_fraction') ncolors(`ncolors') 
 		local n_labels = rowsof(`label_coord')  //number of rows for one color
-		adjust_bar_placement `yhi_uni' `ylo_uni', n_labels(`n_labels') 
+		adjust_bar_placement `yhi_uni' `ylo_uni', n_lab(`n_labels') min_nonmissing(`min_nonmissing') ///
+			label_coord("`label_coord'")  m_val(`missing_value') 
 //local tmpmax= min(_N,40)
 //di "after addlabel: uni_ylo uni_yhi uni_x uni_color" 
 //list  `ylo_uni' `yhi_uni' `x_uni' `color_uni' in 1/`tmpmax'
+//frame connectors: list _all
+//matrix list `label_coord'
 	}
 	else  local addlabeltext=""
 
@@ -324,6 +329,7 @@ program  compute_addlabeltext, rclass
 	forval j=1/`n_labels' { 
 		if (`mat_label_coord'[`j',2] !=0 &  `mat_label_coord'[`j',3]!=0) { 
 			/* 2nd col==0 crucial if matrix has empty rows, otherwise graph disappears*/
+			// 3rd col==0 avoids plotting labels where labels were too close
 			// text to plot ="``pos''"      y = `mat_label_coord'[`j',1]        x= `mat_label_coord'[`j',2]  
 			// the matrix needs to be evaluated as  `=matrixelem'  ; otherwise just the name of the matrix elem appears
 			local addlabeltext= ///
@@ -390,11 +396,13 @@ end
 //If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
 //input:  	
 //	n_labels: number of labels= number of boxes for any one color
+// min_nonmissing:  0 if no missing ; ~9.09 if missing; position of the smallest non-missing label
+// m_val :  missing_value, set to 5
 //on output: 
-//	yhi_uni, ylo_uni Are changed for some bars 
+//	yhi_uni, ylo_uni are changed for some bars 
 program adjust_bar_placement 
 	version 18
-	syntax varlist (min=2 max=2), n_labels(int)
+	syntax varlist (min=2 max=2), n_lab(int) min_nonmissing(real) label_coord(str) m_val(int)
 
 	tokenize `varlist'
 	local yhi_uni `1'
@@ -412,7 +420,7 @@ program adjust_bar_placement
 	//	colors for the same box are at :   i,i+n_colors,i+2* n_colors,...
 	//	for a given group of boxes, if any color exceeds `upper', then set the index for all colors to 1 (max of 0/1 index)
 	//	replace ylo and yhi  if indicator variable is on
-	qui gen `i_within_color' = mod(_n-1,`n_labels')+1   // 1..n_label for each color
+	qui gen `i_within_color' = mod(_n-1,`n_lab')+1   // 1..n_label for each color
 	qui gen `sortorder'=_n
 	quietly { // upper
 		gen `index'= `yhi_uni'>`upper' & !missing(`yhi_uni') // 0/1 whether box exceeds upper limit for any color
@@ -422,7 +430,7 @@ program adjust_bar_placement
 		//noi bysort `i_within_color' : list `ylo_uni' `yhi_uni' `diff' `index2' `i_within_color'
 
 		// establish the maximal value and move all colors of that group down 
-		forvalues i = 1/`n_labels' {
+		forvalues i = 1/`n_lab' {
 			// for each group of boxes
 			sum `yhi_uni' if `index2' & `i_within_color'==`i' 
 			local i_max=r(max)
@@ -431,33 +439,47 @@ program adjust_bar_placement
 			replace `yhi_uni'= `yhi_uni'-`diff' if `index2' & `i_within_color'==`i'
 		}
 	}
+	// if missing, for lower, I need to distinguish between missing values and non-missing values
+	//    for missing values use `lower' as before
+	//    for non-missing values use  `min_nonmissing' 
 	quietly { // lower
 		drop `index2' `index'
-		gen `index'= `ylo_uni'<`lower'  // 0/1 whether box is below lower limit for any color
-		bysort  `i_within_color': egen `index2'= max(`index')  // max ignores missing values
+		gen `index'=.
+		// label_coord only has `n_lab' rows, enough for the first color. But ylo_uni have #color*n_lab rows
+		// mod(x,`n_lab')=0 if x=`n_lab' , therefore I have to add +  `n_lab' at the end when x=`n_lab'
+		replace `index'= `ylo_uni'<`min_nonmissing'  if `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' // 0/1 whether box is below limit for any color
+		replace `index'= `ylo_uni'<`lower'  if `label_coord'[mod(_n-1,`n_lab')+1,3]==`m_val'   // 0/1 whether box is below lower limit for any color
+		bysort  `i_within_color': egen `index2'= max(`index')  // are any `index' values 1? max ignores missing values
 		sort `sortorder'
 		// establish the minimal value and move all colors of that group up 
-		forvalues i = 1/`n_labels' {
+		forvalues i = 1/`n_lab' {
 			// for each group of boxes
 			sum `ylo_uni' if `index2' & `i_within_color'==`i' 
-			local i_min=r(min)
-			local diff = `lower'-`i_min'  //diff= lower limit - min value
-			replace `ylo_uni'= `ylo_uni'+`diff' if `index2' & `i_within_color'==`i' //move all values up
-			replace `yhi_uni'= `yhi_uni'+`diff' if `index2' & `i_within_color'==`i'
+			local i_min=r(min)   // minimum across all colors for this label `i'
+			// non-missing
+			local diff = `min_nonmissing'-`i_min'-3  // (for non-missing values) -3 is to avoid the labels
+			replace `ylo_uni'= `ylo_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' //move all values up
+			replace `yhi_uni'= `yhi_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' // non-missing 
+			// missing 
+			local diff = `lower'-`i_min'  //diff= lower limit - min value  (for missing values)
+			replace `ylo_uni'= `ylo_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]==`m_val' //move all values up
+			replace `yhi_uni'= `yhi_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]==`m_val' // missing 
+			
 		}
 	}
 end 
 /**********************************************************************************/
 * creates matrix with coordinates for labels and "label_text" variable in frame connectors
+* on input : missing_value  This value,5, is needed in label_too_close, I didn't want to define it inside of the function
 * on exit: `label_text' : variable in frame connectors with one row for each label 
 * on exit: label_coord: matrix with one row for each label 
 *    matrix has 3 cols: 
 *    1 variable values/levels (y-coordinate)  1..(# labels for corresponding variable)
 *    2 variable index in `varlist'  (x-coordinate) 1...(#variables) 
-*    3  takes values "." (start of a new variable, i.e. the first label of a new variable) and "5"  (missing indicator) 
+*    3  takes values "." (start of a new variable, i.e. the first label of a new variable) and "5"  (missing_value) 
 program define list_labels, rclass
 	version 18
-	syntax varlist , label_text(str) missing(int) [ label_format(string) ]
+	syntax varlist , label_text(str) missing(int) missing_value(int) [ label_format(string) ]
 
 	tempname one_ylabel label_coord
 
@@ -477,7 +499,6 @@ program define list_labels, rclass
 	if (`missing'==1)  { 
 		local miss = "m" 
 	}
-	local missing_indicator=5 // needed  later in label_too_close
 
 	foreach v of var `varlist' { 
 		local i= `i'+1
@@ -486,12 +507,13 @@ program define list_labels, rclass
 		local g : value label `v'   // value label does not include missing
 		forval  j = 1/`n_one_ylabel' {
 			local w=`one_ylabel'[`j',1]
-			matrix `label_coord'[`offset'+`j',2]=`i'  // i^th variable
+			matrix `label_coord'[`offset'+`j',2]=`i'  // i^th variable, also x-coordinate
 			matrix `label_coord'[`offset'+`j',1]=`w'  // value of label, or . for missing
 			if (`j'==1) {  
 				* This marks when a new variable starts. Needed in decide_labels_too_close
 				matrix `label_coord'[`offset'+`j',3]=.
 			}
+			// now save label text
 			if "`g'"!="" {
 				/* value label present */ 
 				local l : label `g' `w'
@@ -501,7 +523,7 @@ program define list_labels, rclass
 				}
 				else if ("`l'"==".") {  // values not in the valuelabel are simply repeated, including "." 
 					local l="missing"
-					matrix `label_coord'[`offset'+`j',3]=`missing_indicator'
+					matrix `label_coord'[`offset'+`j',3]=`missing_value'
 				}
 				qui frame connectors: replace `label_text' = "`l'"  if _n==`offset'+`j' 
 			}
@@ -513,7 +535,7 @@ program define list_labels, rclass
 				}
 				if ("`format_w'"==".")  {
 					local format_w="missing"
-					matrix `label_coord'[`offset'+`j',3]=`missing_indicator'
+					matrix `label_coord'[`offset'+`j',3]=`missing_value'
 				}
 				qui frame connectors: replace `label_text' = "`format_w'"  if _n==`offset'+`j'
 			}
@@ -528,7 +550,7 @@ end
 *	The first section of the matrix is for color 1 , followed by rows for color 2, ETC.   
 * on input: n_colors  : number of colors
 * on exit: uni_matrix: matrix with one row for each label/color combination with four columns:
-*		1 cum. proportion,  2 Variable index,  3  "." for the first label of a new variable, 4 Colour, 5 proportion by color
+*		1 cum. proportion,  2 Variable index,  3  "." for the first label of a new variable, 4 color, 5 proportion by color
 program  create_uni_matrix, rclass
 	version 17
 	syntax varlist , ncolors(int) colorvar(str) missing(int)
@@ -1449,6 +1471,8 @@ program transform_variable_range , rclass
 	syntax varlist ,  addlabel(int) same(int) mat_label_coord(str) miss(int) ///
 		rangeexpansion(real) [ samescale(varlist) ]
 
+	local min_nonmissing=0   // true unless there are no missing values
+
 	* compute max,min values over the variables specified in samescale
 	if `same' {
 		globalminmax `samescale' 
@@ -1482,11 +1506,13 @@ program transform_variable_range , rclass
 			local missval=`min'-`rangeexpansion'*`range' // set missval a little bit below minimum
 			// if `v' appears multiple times in varlist, it is important to change `my_y' and not `v' itself
 			qui replace `my_y'=`missval' if `my_y'==.
+			local min_nonmissing=`min'  // save the value
 			local min=`missval'  /* redefine minimum value and range */
 			local range=`range'*(1+`rangeexpansion')
 		}	
 		qui replace `my_y' = (`my_y'-`min')/ `range' * 100   // standardize to min=0, max=100 
 		if `addlabel'==1 {
+			local min_nonmissing=(`min_nonmissing'-`min')/ `range' * 100  //duplicating calc below for min_nonmissing
 			local n_labels = rowsof(`mat_label_coord') 
 			forval ii = 1 / `n_labels' {
 				if (`mat_label_coord'[`ii',2]==`i') { /* label belongs to variable `v' */
@@ -1501,9 +1527,11 @@ program transform_variable_range , rclass
 		}
 		
 	}
+	return local min_nonmissing `min_nonmissing' // y-coordinate of smallest non-missing value
 end
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // purpose :  	decide whether the  label distance on the y-axis is too close. If yes, set mat_label_coord[,3]==0
+//				missing values 
 //				This has to happen *after* transforming variables to have a range between 0 and 100
 // input :	  mat_label_coord[,3] has "." for the first element of each variable (where no distances are computed)
 //			  min_distance: minimum distance between labels  (on a scale from 0-100)
@@ -1511,17 +1539,16 @@ end
 // output:	  mat_label_coord[,3] contains decision (0= do not plot, 1= plot, .= bottom most label (also first label of new var in sequence)
 program decide_label_too_close 
 	version 16.0
-	syntax ,  mat_label_coord(str) min_distance(real)
+	syntax ,  mat_label_coord(str) min_distance(real) missing_value(int)
 
 	local n_labels = rowsof(`mat_label_coord') 
 	local add_dist=0  // previous distance to previously plotted label
-	local missing_indicator=5
 	forval j = 2 / `n_labels' {
-		if (`mat_label_coord'[`j',3]==`missing_indicator') { 
+		if (`mat_label_coord'[`j',3]==`missing_value') { 
 			// missing value label
-			matrix `mat_label_coord'[`j',3]= 1
-			matrix `mat_label_coord'[`offset'+`j',1]=0 // was reset during transformation, I think
-			local add_dist=0 // may not be needed
+			// keep value of  mat_label_coord[,3]=5 
+			matrix `mat_label_coord'[`offset'+`j',1]=0 // safety; was set to 0 during variable transform/ expansion
+			local add_dist=0 // safety; not needed because missing value is last category for a given variable
 		}
 		else if (`mat_label_coord'[`j',3]!=.) {
 			/* if not the first label of a new variable,  distance = y_current - y_last */
@@ -1538,8 +1565,7 @@ program decide_label_too_close
 		else {
 			local add_dist=0  // reset add_dist for new variable
 		}
-	}
-	
+	}	
 end 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //Version 
@@ -1571,8 +1597,9 @@ end
 //*! 1.4.3   Apr 05, 2024: allow hivalues with <=,>= signs , e.g. hivalues(>=2) 
 //*! 1.4.4   Jul 22, 2024: accommodate scheme stcolor Stata18 adding xlab(,nogrid) ylab(,nogrid)
 //*! 1.4.5   Jul 23, 2024: documentation on aspect ratio
-//*! 2.0.0   Sep 5, 2024: add univariate bars
+//*! 2.0.0   Sep  5, 2024: add univariate bars
 //*! 2.0.1   Sep 12, 2024: fixed bug related to labels with missing values
 //*! 2.0.2   Sep 20, 2024: added label_format
 //*! 2.0.3   Sep 26, 2024: changed default color to gs10
-//*! 2.0.4 Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables
+//*! 2.0.4   Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables
+//*! 2.0.5   Nov 18, 2024: fixed bug: missing lowest non-missing uni-bar pushed into missing
