@@ -36,6 +36,7 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synopt :{opt labelopt(str)}} Pass options to {it:{help added_text_options}}, e.g. to manipulate label text size{p_end}
 {synopt :{opt uni_fraction(real)}} For univariate bars, proportion of vertical space covered with bars {p_end}
 {synopt :{opt label_format(str)}} (rarely needed) Display format of numerical labels {p_end}
+{synopt :{opt subspace(real)}} (rarely needed) adjust empty space between univariate bars and connectors {p_end}
 
 {syntab :Layout of boxes in between axes}
 {synopt :{opt bar:width(real)}} Change width of the connecting boxes to reduce clutter {p_end}
@@ -169,9 +170,11 @@ or {it:uni_colorlist(bg bg)} if there is one highlighting color.
 {phang}
 {opt space} specifies the fraction of plot allocated for 
 displaying labels. If {it:label} is specified, the default is 0.3, meaning 30% of the available
- space is allocated to the display of labels, and 70% for the graph elements.
- If {it:label} is not specified, the default is 0. Negative values are allowed.
-
+ space is allocated to the univariate bars and the labels, and 70% for the graph elements.
+ If {it:label} is not specified, the default is 0. 
+ {it:space(1)} is the edge case where only univariate bars are shown.
+ {it:space(0)} is the edge case where only bivariate connectors are shown. 
+ 
 {phang}
 {opt label_min_dist} specifies the minimum distance between two labels on the same axis.
 A label is associated with each unique value of a variable.  
@@ -198,10 +201,19 @@ By default, {it:uni_fraction(0.5)}. This option can be used to avoid overlapping
 or to improve layout according to user taste.
 
 {phang}
-{opt label_format(string)} For numerical labels, display format of the numerical value. 
+{opt label_format(string)} (rarely used) For numerical labels, display format of the numerical value. 
 By default,   {it:label_format(%6.0g)}. 
 See {it:{ help format}} for other display formats.
 This option has no effect on string labels.
+
+{phang}
+{opt subspace(real)}
+(rarely needed) The plotting area consists of alternating univariate bars and connecting boxes.
+{it:space()} determines the fraction of space allocated for the univariate bars. 
+To avoid that the univariate bars and connecting boxes touch, 
+the univariate space is not used in full; a large fraction is used. We call this fraction {it:subspace}. 
+By default,  {it:subspace(0.8)} meaning that 80% of the allocated space is used for univariate bars; 
+the remainder is empty. 
 
 {dlgtab:Layout of boxes in between axes}
  
@@ -410,7 +422,7 @@ FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more d
 {title:References}
 
 {p 0 8} Schonlau M. Hammock plots: visualizing categorical and numerical variables. 
-Journal of Computational and Graphical Statistics (to appear in print). 
+Journal of Computational and Graphical Statistics,  Nov 2024, 33(4), 1475–1487. 
 {break} Journal: {browse "https://www.tandfonline.com/doi/full/10.1080/10618600.2024.2322561"}
 {break} Preprint:{browse "https://schonlau.net/publication/24schonlau_hammock_JCGS.pdf"}
 

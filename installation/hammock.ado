@@ -1,8 +1,9 @@
 program define hammock
-*! 2.0.5 Nov 18, 2024: fixed bug: missing lowest non-missing uni-bar pushed into missing
+*! 2.0.6 Nov 21, 2024:  allow space(1.0); added subspace option
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
-		hivar(str) HIVALues(string) SPAce(real 0.0) ///
+		hivar(str) HIVALues(string) /// 
+		SPAce(real 0.0)  subspace(real 0.8) ///
 		LABel labelopt(str) label_min_dist(real 3.0) label_format(str) ///
 		SAMEscale(varlist)  ///
 		uni_fraction(real .5) uni_colorlist(str) ///
@@ -192,7 +193,7 @@ program define hammock
 	qui gen `ylo_uni'=. 
 	qui gen `x_uni'=.
 	qui gen `color_uni'=.
-	local uni_width= .8*`varnamewidth'
+	local uni_width= `subspace'  *`varnamewidth'
 	
 	
 	if `addlabel'==1 {
@@ -235,21 +236,59 @@ program define hammock
 	}
 	local yrange=`ylabmax'-`ylabmin'
 
-	// each obs represents a unique box (with multiple colors)
-	// there is one `width' variable for each color: 
-	// `width' is the stub of the variable names; `width'i contains the width of color i
-	GraphBoxColor , xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') ///
-		width(`width')  ylabmax(`ylabmax') ylabmin(`ylabmin') ///
-		aspectratio(`aspectratio') ar_x(`ar_x') xrange(`xrange') yrange(`yrange') ///
-		 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist(`"`colorlist'"') ///
-		 shape("`shape'") outline(`outline') ///
-		 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"') ///
-		 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
-		 uni_width(`uni_width') uni_colorlist(`uni_colorlist')
-	// matrix `label_coord' is still around but not needed in GraphBoxColor 
+
+	if (`space'!=float(1.0)) {
+		// each obs represents a unique box (with multiple colors)
+		// there is one `width' variable for each color: 
+		// `width' is the stub of the variable names; `width'i contains the width of color i
+		GraphBoxColor , xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') ///
+			width(`width')  ylabmax(`ylabmax') ylabmin(`ylabmin') ///
+			aspectratio(`aspectratio') ar_x(`ar_x') xrange(`xrange') yrange(`yrange') ///
+			 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist(`"`colorlist'"') ///
+			 shape("`shape'") outline(`outline') ///
+			 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"') ///
+			 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
+			 uni_width(`uni_width') uni_colorlist(`uni_colorlist')
+		// matrix `label_coord' is still around but not needed in GraphBoxColor 
+	}
+	else {   // only plot unibars; don't compute connecting boxes
+		plot_unibars,  ///
+			 ylabmax(`ylabmax') ylabmin(`ylabmin') ///
+			aspectratio(`aspectratio') ///
+			 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist(`"`colorlist'"') ///
+			  outline(`outline') ///
+			 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"') ///
+			 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
+			 uni_width(`uni_width') uni_colorlist(`uni_colorlist')
+	}
 	
 	frame drop connectors
 end
+/**********************************************************************************/
+// only plot the unibars and the labels.
+// this is the same plotting routine as in GraphBoxColor. See comment about a small change below
+program plot_unibars 
+	version 18
+	syntax ,  graphx(str) ///
+		ylabmin(real) ylabmax(real) xlab_num(str)  outline(int) ///
+		aspectratio(real)  ///
+		uni_ylo(str) uni_yhi(str)  uni_x(str) uni_color(str) uni_width(real) uni_colorlist(str) ///
+		[  colorlist(str) addlabeltext(str) yline(str)  options(str)  ]
+	
+	//@@ There is a STATA bug when using colorvar() with temporary variables 
+	//as a workaround I'm defining a permanent variable until Stata fixes this issue
+	qui gen uni_color_var=`uni_color'
+
+	// changes: `addplot' contains the boxes and is removed; option `addlabeltext' is then moved elsewhere
+	twoway scatter std_y `graphx', ///
+		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
+		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
+		plotregion(style(none) m(zero)) ///
+		aspect(`aspectratio') `options'  ///
+		|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
+			colorvar(uni_color_var) colordiscrete colorlist(`uni_colorlist') clegend(off) ///
+			`addlabeltext' 
+end 
 /**********************************************************************************/
 program iterate_width_range , rclass
 // for parallelogram only: 
@@ -410,8 +449,9 @@ program adjust_bar_placement
 
 	//If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
 	//Note: If upper is e.g. 103,  some variables will go to 103 and others only to ~100
-	local upper=103 // upper limit a bit above 100, so label is not on border
-	local lower=-3
+	local eps=3
+	local upper=100+`eps' // upper limit a bit above 100, so label is not on border
+	local lower=-`eps'
 	tempvar diff index i_within_color index2 sortorder diff2
 	qui gen `diff'= `yhi_uni'-`ylo_uni'
 
@@ -457,7 +497,7 @@ program adjust_bar_placement
 			sum `ylo_uni' if `index2' & `i_within_color'==`i' 
 			local i_min=r(min)   // minimum across all colors for this label `i'
 			// non-missing
-			local diff = `min_nonmissing'-`i_min'-3  // (for non-missing values) -3 is to avoid the labels
+			local diff = `min_nonmissing'-`i_min'-`eps'  // (for non-missing values) -3 is to avoid the labels
 			replace `ylo_uni'= `ylo_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' //move all values up
 			replace `yhi_uni'= `yhi_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' // non-missing 
 			// missing 
@@ -897,7 +937,6 @@ end
 *		and unclear whether reducing the number of variables improves anything.
 
 program define GraphBoxColor 
-	//version 14.2
 	version 18
 	syntax , xstart(str) xend(str) ystart(str) yend(str) width(str) graphx(str) ///
 		ylabmin(real) ylabmax(real) xlab_num(str) shape(str) outline(int) ///
@@ -967,8 +1006,14 @@ program define GraphBoxColor
 			tokenize `"`colorlist'"'
 			local color= "``k''"  // need double single quotes
 
-			// for a given color k, plot one parallelogram at a time.			
-			foreach i of  numlist 1/`N' {
+			// for a given color k, plot one parallelogram at a time.	
+			if (`N'>1600) {
+				// the number 1600 is not exact; it was empirically determined
+				di as error "You are drawing many boxes (" _N ")between axes. "
+				di as error "If there is an error, try highlighting fewer observations or removing one of the numerical variables."
+				di as error " " 
+			}
+			forval i= 1/`=_N' {
 				
 				// for each  graph box
 				local yhigh1= `yhigh'[`i']
@@ -1216,7 +1261,7 @@ program init_rectangle
 	// Loop because trigonometric functions don't take variables as arguments. 
 	// (could convert to a matrix as an alternative.)
 	// Alpha appears correct; The default layout atan(5.5/4) = 54 degrees which is similar to simple example
-	foreach i of numlist 1/`=_N' { 
+	forval i  = 1/`=_N' {
 		local ratio= `deltay'[`i']/`deltax'[`i']  
 		qui replace `alpha' = atan(`ratio')  in `i' //alpha is in radians
 		qui replace `cosalpha'=cos(`alpha'[`i']) in `i'
@@ -1603,3 +1648,4 @@ end
 //*! 2.0.3   Sep 26, 2024: changed default color to gs10
 //*! 2.0.4   Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables
 //*! 2.0.5   Nov 18, 2024: fixed bug: missing lowest non-missing uni-bar pushed into missing
+//*! 2.0.6 Nov 21, 2024:  allow space(1.0); added subspace option
