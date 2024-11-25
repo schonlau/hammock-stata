@@ -72,15 +72,6 @@ where `varlist` are is the list of variables to visualize in that order.
 
 ## Examples
 
-If you are using Stata 17 or earlier, you may want to change the scheme to obtain a plain white look:
-
-```
-set scheme s1color
-```
-
-If you are using Stata 18 or later, a plain white look is the default (A new scheme, stcolor, is used).
-
-
 Load the Shakespeare data set to your current directory:
 ```stata
 net get hammock, from("https://raw.githubusercontent.com/schonlau/hammock-stata/main/installation/") replace
