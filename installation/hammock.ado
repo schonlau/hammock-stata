@@ -384,11 +384,11 @@ end
 // compute vars (yhi,ylo,x,color) from matrices to add Univariate Frequency bars 
 //		Some bars may exceed [lower,upper]=[~0,~100]. (Elsewhere, adjust bar down or up) 
 // input: 
-//	mat_uni   		matrix With Univariate frequencies (For all colours,rows appended)
+//	mat_uni			matrix With Univariate frequencies (For all colours,rows appended)
 //	mat_label_coord	Matrix with coordinates of labels (For the first colour only )
-//	uni_fraction		(real) fraction of the univariate space covered with bars
+//	uni_fraction	(real) fraction of the univariate space covered with bars
 //	n_colors		(int) Number of colours 
-//output 	variables yhi_uni, ylo_uni, x_uni,color_uni changed globally.
+//	output:			variables yhi_uni, ylo_uni, x_uni,color_uni changed globally.
 program  add_unibars, rclass
 	version 18
 	syntax varlist (min=4 max=4), mat_label_coord(str) mat_uni(str) ///
@@ -403,7 +403,7 @@ program  add_unibars, rclass
 	local f=`uni_fraction'  //determines what percentage of the univariate space is covered with bars 
 	if (`f'<0 | `f'>1) {
 		di as red "Unexpected input for uni_fraction(`f'). Expected values are 0.0-1.0" 
-		di as res ""   // subsequence displays are in black
+		di as res ""   // subsequent displays are in black
 	}
 
 	local n_labels = rowsof(`mat_label_coord')  //number of rows for one color
@@ -1516,7 +1516,7 @@ program transform_variable_range , rclass
 	syntax varlist ,  addlabel(int) same(int) mat_label_coord(str) miss(int) ///
 		rangeexpansion(real) [ samescale(varlist) ]
 
-	local min_nonmissing=0   // true unless there are no missing values
+	local min_nonmissing=0   // true unless there are missing values
 
 	* compute max,min values over the variables specified in samescale
 	if `same' {
@@ -1557,7 +1557,10 @@ program transform_variable_range , rclass
 		}	
 		qui replace `my_y' = (`my_y'-`min')/ `range' * 100   // standardize to min=0, max=100 
 		if `addlabel'==1 {
-			local min_nonmissing=(`min_nonmissing'-`min')/ `range' * 100  //duplicating calc below for min_nonmissing
+			if (`miss') {
+				local min_nonmissing=(`min_nonmissing'-`min')/ `range' * 100  //duplicating calc below for min_nonmissing
+				// if !(`miss')  min_nomissing stays at 0
+			}
 			local n_labels = rowsof(`mat_label_coord') 
 			forval ii = 1 / `n_labels' {
 				if (`mat_label_coord'[`ii',2]==`i') { /* label belongs to variable `v' */
