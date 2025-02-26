@@ -1,5 +1,5 @@
 program define hammock
-*! 2.0.6 Nov 21, 2024:  allow space(1.0); added subspace option
+*! 2.0.7 Feb 26, 2024: changed default color; add check_hivalues_exist; draft add_unibars_compare
 	version 14.2
 	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
 		hivar(str) HIVALues(string) /// 
@@ -31,15 +31,12 @@ program define hammock
 	local varnamewidth=`space' /*=percentage of space given to text as opposed to the graph*/
 	if `addlabel'!=0 & `space'==float(0) {
 		local varnamewidth=0.3   // if addlabel, change the default space to 0.3
-	}
-
+	}								   
+																		
 	parse_hivalues, hivalues("`hivalues'") hiprefix("") 
 	local hiprefix = r(hiprefix)  // if missing, this assigns hiprefix="."
 	local hivalues = r(hivalues)  // caution : overwrites hivalues
 	
-	check_sufficient_colors ,  hivar("`hivar'") hivalues("`hivalues'") colorlist(`"`colorlist'"') 
-	if ("`colorlist'"=="")	 local colorlist="gs10 red  blue teal  yellow sand maroon orange olive magenta"
-
 	* observations to use 
 	marksample touse , novarlist
 	qui count if `touse' 
@@ -86,17 +83,22 @@ program define hammock
 	local k : word count `varlist' 
 	local max=`k'
 	tokenize `varlist' 
+
+	if "`hivar'"!=""  check_hivalues_exist, hivar(`hivar') hivalues(`"`hivalues'"')  hiprefix(`hiprefix')
+	update_colorlists, colorlist(`"`colorlist'"') uni_colorlist(`"`uni_colorlist'"') miss(`missing') ///
+		hivar(`hivar') hivalues("`hivalues'")
+	local uni_colorlist= r(uni_colorlist) 
+	local colorlist= r(colorlist)  // if all values highlighted, first color removed
+	local highlight_all_levels=r(highlight_all_levels)
 	
 	/*generate colorgroup variable for highlighting*/
 	/*later, missval replaces "." , so gen_colorgroup needs to go before*/
-	if "`hivar'"!=""    qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues') hiprefix(`hiprefix')
+	if "`hivar'"!=""    qui gen_colorgroup , hivar(`hivar') hivalues(`hivalues') hiprefix(`hiprefix') ///
+												highlight_all_levels(`highlight_all_levels')
 	else 				qui gen colorgroup=1
 	qui tab colorgroup
 	local ncolors=r(r) // number of colors
-	create_uni_colorlist, colorlist(`"`colorlist'"') uni_colorlist(`"`uni_colorlist'"') miss(`missing') ///
-		hivar(`hivar') hivalues("`hivalues'")
-	local uni_colorlist= r(uni_colorlist) 
-
+	
 	cap frame drop connectors
 	frame create connectors   // only used if `addlabel'; but safer to create always
 	if `addlabel'==1 {		
@@ -106,7 +108,6 @@ program define hammock
 		create_uni_matrix `varlist', ncolors(`ncolors') colorvar("colorgroup") missing(`missing') //univariate frequencies for each bar (separate by color)
 		matrix `uni_matrix' = r(uni_matrix)
 	}
-
 
 	* transform variables' range to be between 0 and 100, also adjust matrix w label coordinates
 	// Note this computes the midpoints (between 0 and 100), the upper/lower points may be a little wider
@@ -153,7 +154,7 @@ program define hammock
 	* scatter std_y  `graphx'
 
 	qui replace _freq=max(`minbarfreq',_freq)
-	
+
 	*** preparation for graph 
 	
 	* make room for labels in between rectangles
@@ -195,7 +196,7 @@ program define hammock
 	qui gen `color_uni'=.
 	local uni_width= `subspace'  *`varnamewidth'
 	
-	
+
 	if `addlabel'==1 {
 		compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
 			label_text("`label_text'") labelopt(`"`labelopt'"')
@@ -236,6 +237,9 @@ program define hammock
 	}
 	local yrange=`ylabmax'-`ylabmin'
 
+//di "ystart yend xstart xend"
+//list `ystart' `yend' `xstart' `xend'
+//di "ystart=" `ystart' " yend(`yend')  xstart(`xstart') xend(`xend') ylow(`ylow') yhigh(`yhigh') ylaglow(`ylaglow') ylaghigh(`ylaghigh') xlow(`xlow') xhigh(`xhigh') xlaglow(`xlaglow') xlaghigh(`xlaghigh')  "
 
 	if (`space'!=float(1.0)) {
 		// each obs represents a unique box (with multiple colors)
@@ -384,8 +388,8 @@ end
 // compute vars (yhi,ylo,x,color) from matrices to add Univariate Frequency bars 
 //		Some bars may exceed [lower,upper]=[~0,~100]. (Elsewhere, adjust bar down or up) 
 // input: 
-//	mat_uni			matrix With Univariate frequencies (For all colours,rows appended)
-//	mat_label_coord	Matrix with coordinates of labels (For the first colour only )
+//	mat_uni			matrix with univariate frequencies (For all colours,rows appended)
+//	mat_label_coord	matrix with coordinates of labels (For the first colour only )
 //	uni_fraction	(real) fraction of the univariate space covered with bars
 //	n_colors		(int) Number of colours 
 //	output:			variables yhi_uni, ylo_uni, x_uni,color_uni changed globally.
@@ -432,6 +436,102 @@ program  add_unibars, rclass
 
 end 
 /**********************************************************************************/
+// compute vars (yhi,ylo,x,color) from matrices to add Univariate Frequency bars 
+//		additional colors are go from left to right to allow comparison within column
+//		Some bars may exceed [lower,upper]=[~0,~100]. (Elsewhere, adjust bar down or up) 
+// input: 
+//	mat_uni			matrix with univariate frequencies (For all colours,rows appended)
+//	mat_label_coord	matrix with coordinates of labels (For the first colour only )
+//	uni_fraction	(real) fraction of the univariate space covered with bars
+//	n_colors		(int) Number of colours 
+//	output:			variables yhi_uni, ylo_uni, x_uni,color_uni changed globally.
+/*
+// THIS PROGRAM IS NOT YET USED ; work in progress
+program  add_unibars_compare, rclass
+	version 18
+	syntax varlist (min=4 max=4), mat_label_coord(str) mat_uni(str) ///
+		ncolors(int) uni_fraction(real)
+
+	tokenize `varlist'
+	local yhi_uni `1'
+	local ylo_uni `2'
+	local x_uni   `3'
+	local color_uni `4'
+	
+	local f=`uni_fraction'  //determines what percentage of the univariate space is covered with bars 
+	if (`f'<0 | `f'>1) {
+		di as red "Unexpected input for uni_fraction(`f'). Expected values are 0.0-1.0" 
+		di as res ""   // subsequent displays are in black
+	}
+
+	local n_labels = rowsof(`mat_label_coord')  //number of rows for one color
+
+	tempname var_uni var_label_coord prop prop_one_color
+	qui svmat `mat_uni', names(`var_uni') // this may increase number of obs as needed
+	qui rename `var_uni'1 `prop'  //proportions (cumulative across colors) 
+	qui replace `x_uni'    =`var_uni'2 
+	qui replace `color_uni'=`var_uni'4
+	qui rename `var_uni'5 `prop_one_color'  //proportions for one colour
+	// mat_labelcoord columns: 1 y; 2 x; 3 indicator newvar/missing  (see list_labels program)
+	svmat `mat_label_coord', names(`var_label_coord') // after rows for first color, var_label_coord has missing in remainder
+
+	//  y-values (remember colors have full height; colors are left to right) 
+	// var_label_coord'1  has only first color, but has '.' in the remaining rows, syntax error avoided
+	qui replace `ylo_uni'= `var_label_coord'1-`prop'*`f'*50  
+	qui replace `yhi_uni'= `var_label_coord'1                // full height
+
+
+// implementation: 
+// The rectangle plots as   
+//		twoway rbar yhi ylo xuni , barwidth(real)
+// Previously, barwidth has been constant for everything, but now it varies if I have more than one color
+//    Varying barwidth  requires a new rbar command for each new barwidth
+//		rbar yhi ylo x_uni  if _n==<condition> , barwidth(`=barwidth[_n]')  or similar.
+//	Maybe create a new frame where each observation is a rectangle.
+//	The number of rectangles is #colors * # labels  
+//	Caution: The twoway plot requires variables from both frames. This is doable: 
+//			gen `n'=_n in both frames, link the 2 frames (frlink 1:1), create aliases for the variables in the other frame.
+//			see towway_rarea_w_multiple_frames 
+//	Example: In frame connectors, each observation is a label. In compute_addlabeltext, _frval accesses the labels.
+//	Alternatively, the horizontal option: rbar yhi ylo x_uni, barwidth()  horizontal  . Likely not useful here.
+//	Alternatively, implement with rarea; but this requires 5 observations for each bar (the polygon once around the rectangle)
+//			whereas  rbar only requires one observation  
+
+	// x-values first color
+	qui replace `x_uni'= `var_label_coord'1-`prop'*`f'*50  if _n<=`n_labels' // 
+// I don't have a second var name for x_uni upper
+//	qui replace `x_uni'= `var_label_coord'1-`prop'*`f'*50 + `prop_one_color'*`f'*100  if _n<=`n_labels' //
+
+	// additional colors
+	// this statement requires `prop_one_color' be one long variable
+	qui replace `yhi_uni'=  `yhi_uni'[_n-`n_labels']+ `prop_one_color'*`f'*100  if _n>`n_labels' // add to the prev. color
+	qui replace `ylo_uni'=  `yhi_uni'[_n-`n_labels']  if _n>`n_labels' & !missing(`yhi_uni') // this line has to come after calc yhi_uni
+
+	// prevent colors of width 0 to plot (Not tested whether needed)
+	qui replace `x_uni'=. if `prop_one_color'==0 | `color_uni'==0   // `color_uni'=0 is for unused rows cause of missing vals
+	qui replace `color_uni'=. if `color_uni'==0  // if missing , this may happen if not all rows are filled
+
+   ---
+   cap frame drop unibox
+   frame create unibox
+   frame unibox: set obs  `nlevel'*`ncolor'   @@@ where are those locals?
+   frame unibox: gen n=_n
+   frame unibox: gen yhi=.
+   frame unibox: gen ylo=.
+   frame unibox: gen x=.
+   //store barwidth in a variable, then access elements later
+   frame unibox: gen barwidth=.
+   foreach color  {
+   //should I create var_label_coord in the other frame , or should I link it? 
+		qui replace `ylo_uni'= `var_label_coord'1-`prop'*`f'*50  
+		qui replace `yhi_uni'= `var_label_coord'1                // full height
+
+      // work on n_level obs with variables 
+   }
+
+end 
+*/
+/**********************************************************************************/
 //If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
 //input:  	
 //	n_labels: number of labels= number of boxes for any one color
@@ -449,7 +549,7 @@ program adjust_bar_placement
 
 	//If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
 	//Note: If upper is e.g. 103,  some variables will go to 103 and others only to ~100
-	local eps=3
+	local eps=3 
 	local upper=100+`eps' // upper limit a bit above 100, so label is not on border
 	local lower=-`eps'
 	tempvar diff index i_within_color index2 sortorder diff2
@@ -746,7 +846,7 @@ end
 * string variables allowed only when highlighting a variable not in varlist
 program define gen_colorgroup
 	version 16
-	syntax ,  hivar(varname) HIVALues(string) hiprefix(string)
+	syntax ,  hivar(varname) HIVALues(string) hiprefix(string) highlight_all_levels(int)
 
 	if "`hiprefix'"!="." {
 		qui gen_colorgroup_prefix,  hivar(`hivar') hivalues(`hivalues') hiprefix(`hiprefix')
@@ -754,7 +854,8 @@ program define gen_colorgroup
 	else {
 		capture confirm numeric variable `hivar'
 		if !_rc {
-			qui gen_colorgroup_num , hivar(`hivar') hivalues(`hivalues')  //numeric variable
+			qui gen_colorgroup_num , hivar(`hivar') hivalues(`hivalues') ///
+						highlight_all_levels(`highlight_all_levels')		//numeric variable
 		}
 		else {
 			qui gen_colorgroup_str , hivar(`hivar') hivalues(`hivalues')  //string variable
@@ -775,12 +876,15 @@ end
 * if hivalues not specified will give appropriate error
 program define gen_colorgroup_num
 	version 7
-	syntax  ,  hivar(varname) HIVALues(numlist missingokay) 
+	syntax  ,  hivar(varname) HIVALues(numlist missingokay) highlight_all_levels(int)
 
 	local pen=1
+	if (`highlight_all_levels') {
+		local pen=0   //colorlist contains no default color; the first highlighted color should be 1
+	}
 	qui gen colorgroup=`pen'
 	foreach v of numlist `hivalues' {
-		local pen=mod(`pen',8)+1
+		local pen=mod(`pen',8)+1  //increment pen by 1 (modulo 8)
 		qui replace colorgroup=`pen' if `hivar'==`v' 
 		if ("`v'"==".") {
 			qui replace colorgroup=`pen' if  `hivar'==.
@@ -820,45 +924,69 @@ program define gen_colorgroup_prefix
 	qui replace colorgroup=2 if `hivar' `hiprefix' `hivalues' & !missing(`hivar')
 end
 /**********************************************************************************/
-// copy colour list For univariate boxes 
-program copy_uni_colorlist, rclass 
+// check whether trying to highlight a (numerical) value that does not exist 
+//		if so, issue error
+program check_hivalues_exist
 	version 18
-	syntax  , colorlist(str) 
+	syntax ,  hivar(str) hivalues(str) hiprefix(str)
+
+	// hivalues(str) avoids an error in case the variable is a string variable)
 	
-	local uni_colorlist=""
-	local ii=0
-	foreach w of local colorlist {
-		local ii= `ii'+1
-		if `ii'==1 {
-			local uni_colorlist="gray%20 " 
+	// if hiprefix="<" or ">" or similar, no need to check whether values exist
+	if "`hiprefix'"=="." {
+		capture confirm numeric variable `hivar'
+		if !_rc {
+			//action for numeric variables
+			qui levelsof `hivar', local(x_values) missing  // Store unique values of x in local macro
+
+			foreach h of local hivalues {
+				local found=0
+				foreach  x of local x_values {
+					if (`h'==`x') {
+						local found=1
+					}
+				}
+				if (`found'==0) { 
+					di as error "Variable `hivar' does not contain the value `h' you want to highlight. " 
+					di as error "Existing values are `x_values'" 
+					error 197
+				}
+			}
 		}
 		else {
-			local uni_colorlist="`uni_colorlist'" + "`w' " 
+			//		possible action for str# or strL variables
 		}
 	}
-	return local uni_colorlist "`uni_colorlist'"
-end 
+end
 /**********************************************************************************/
-// create colour list For univariate boxes 
-program create_uni_colorlist, rclass 
+//	check colorlist; and remove first color if not needed
+//	create colour list for univariate boxes 
+program update_colorlists, rclass 
 	version 18
-	syntax  , colorlist(str) miss(int) [ hivar(str) hivalues(str)  uni_colorlist(str) ]
+	syntax  ,  miss(int) [ hivar(str) hivalues(str) colorlist(str) uni_colorlist(str) ]
 	
+	// colorlist 
+	check_sufficient_colors ,  hivar("`hivar'") hivalues("`hivalues'") colorlist(`"`colorlist'"') 
+	if ("`colorlist'"=="")	 local colorlist="blue%50 orange%50 green red teal  yellow sand maroon olive"
+	
+	// uni_colorlist
 	if (`"`uni_colorlist'"')=="" {
-		copy_uni_colorlist, colorlist(`"`colorlist'"')
-		local uni_colorlist =r(uni_colorlist)
+		local uni_colorlist = `"`colorlist'"'
 	}
 	
 	if ("`hivar'"!="") { 
 		check_highlight_all_levels , hivar(`hivar') hivalues(`hivalues') miss(`miss')
 		local highlight_all_levels=r(highlight_all_levels)
 		if (`highlight_all_levels') {
-			// remove default color from uni_colorlist
+			// remove default color from both colorlists
 			// this works even with `"gray  "50 40 80" one two three"' as long as the first word is a normal word
 			local uni_colorlist : subinstr local uni_colorlist "`: word 1 of `uni_colorlist''" "", all
+			local colorlist : subinstr local uni_colorlist "`: word 1 of `colorlist''" "", all
 		}
 	}
 	return local uni_colorlist "`uni_colorlist'"
+	return local colorlist "`colorlist'"
+	return local highlight_all_levels "`highlight_all_levels'"
 end 
 /**********************************************************************************/
 program define computeylablimit, rclass
@@ -911,7 +1039,7 @@ end
 * width 		width`i' contain the  width of the parallelogram for color i in 1/9
 *				The width of a box is the sum of all the color segments width`i'
 *				For parallelogram, this is the vertical width.
-*				For rectangles, this is the rightangle width.
+*				For rectangles, this is the right-angle width.
 * ylabmin,ylabmax:  upper and lower ylabels for plotting. These can be slightly wider 
 *					than range of y because of the size of the bars
 * aspectratio:   Aspect ratio y/x (stata's definition). 
@@ -1150,7 +1278,7 @@ program define plot_quadrangle, rclass
 	if (`yhigh'==. | `xhigh'==. | `ylaghigh'==.) {
 	  di as error "Bug: Missing values in plot_quadrangle"
 	  di "`yhigh';  `ylow'; `xhigh';  `ylaghigh';  `ylaglow';  `xlaghigh' " 
-	  exit 
+	  error 197 
 	}
 	tokenize `varlist'
 	local yhi `1'
@@ -1651,4 +1779,5 @@ end
 //*! 2.0.3   Sep 26, 2024: changed default color to gs10
 //*! 2.0.4   Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables
 //*! 2.0.5   Nov 18, 2024: fixed bug: missing lowest non-missing uni-bar pushed into missing
-//*! 2.0.6 Nov 21, 2024:  allow space(1.0); added subspace option
+//*! 2.0.6   Nov 21, 2024: allow space(1.0); added subspace option
+//*! 2.0.7 Feb 26, 2024: changed default color; add check_hivalues_exist; draft add_unibars_compare
