@@ -1,5 +1,5 @@
 program define hammock
-*! 2.0.8 Mar 28, 2024: option missing_fraction
+*! 2.0.9 Mar 28, 2024:  removed bug for non-missing values with a missing label "."
 	version 14.2
 	syntax varlist [if] [in], [ ///
 		Missing missing_fraction(real .1) ///
@@ -663,7 +663,8 @@ program define list_labels, rclass
 					di as error "A label value for `g' has only white space, creating problems"
 					di as res ""  // any subsequent statements are in result mode (in black)
 				}
-				else if ("`l'"==".") {  // values not in the valuelabel are simply repeated, including "." 
+				// missing values  (guard against  a non-missing value `w' that has a label `l'=="." )
+				else if ("`l'"=="." & missing(`w')) {  // values not in the valuelabel are simply repeated, including "." 
 					local l="missing"
 					matrix `label_coord'[`offset'+`j',3]=`missing_value'
 				}
@@ -1785,3 +1786,4 @@ end
 //*! 2.0.6   Nov 21, 2024: allow space(1.0); added subspace option
 //*! 2.0.7   Feb 26, 2024: changed default color; add check_hivalues_exist; draft add_unibars_compare
 //*! 2.0.8   Mar 28, 2024: option missing_fraction
+//*! 2.0.9   Mar 31, 2024:  removed bug for non-missing values with a missing label "."
