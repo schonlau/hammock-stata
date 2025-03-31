@@ -35,6 +35,7 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synopt :{opt label_min_dist(real)}} Specify minimum distance between two labels on the same axis{p_end}
 {synopt :{opt labelopt(str)}} Pass options to {it:{help added_text_options}}, e.g. to manipulate label text size{p_end}
 {synopt :{opt uni_fraction(real)}} For univariate bars, proportion of vertical space covered with bars {p_end}
+{synopt :{opt missing_fraction(real)}} Proportion of vertical space allocated to missing values {p_end}
 {synopt :{opt label_format(str)}} (rarely needed) Display format of numerical labels {p_end}
 {synopt :{opt subspace(real)}} (rarely needed) adjust empty space between univariate bars and connectors {p_end}
 
@@ -199,6 +200,11 @@ By default, label size is "medium". If option {it:label} is not specified,  opti
 {opt uni_fraction(real)} For univariate bars, proportion of vertical space covered with bars. 
 By default, {it:uni_fraction(0.5)}. This option can be used to avoid overlapping univariate bars
 or to improve layout according to user taste.
+
+{phang}
+{opt missing_fraction(real)} Proportion of vertical space allocated to missing values. By default, {it:missing_fraction(0.1)}.
+When the proportion of missing values is so large that the missing value boxes overlap with boxes above,
+this option can be used to increase the space allocated to missing values and thus to prevent such overlap. {p_end}
 
 {phang}
 {opt label_format(string)} (rarely used) For numerical labels, display format of the numerical value. 

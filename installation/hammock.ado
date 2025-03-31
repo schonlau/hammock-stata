@@ -1,7 +1,9 @@
 program define hammock
-*! 2.0.7 Feb 26, 2024: changed default color; add check_hivalues_exist; draft add_unibars_compare
+*! 2.0.8 Mar 28, 2024: option missing_fraction
 	version 14.2
-	syntax varlist [if] [in], [  Missing BARwidth(real 1) MINBARfreq(int 1) /// 
+	syntax varlist [if] [in], [ ///
+		Missing missing_fraction(real .1) ///
+		BARwidth(real 1) MINBARfreq(int 1) ///
 		hivar(str) HIVALues(string) /// 
 		SPAce(real 0.0)  subspace(real 0.8) ///
 		LABel labelopt(str) label_min_dist(real 3.0) label_format(str) ///
@@ -26,8 +28,7 @@ program define hammock
 	local outline = 1- ("`_outline'" == "no_outline") //options that start with "no" have different syntax 
 
 	if ("`shape'"=="") local shape="rectangle"
-	local rangeexpansion=0.1  /*fraction space reserved for missing values*/
-	
+
 	local varnamewidth=`space' /*=percentage of space given to text as opposed to the graph*/
 	if `addlabel'!=0 & `space'==float(0) {
 		local varnamewidth=0.3   // if addlabel, change the default space to 0.3
@@ -114,7 +115,7 @@ program define hammock
 	// Missing values after standardization (std_y) equal 0
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
 	transform_variable_range `varlist', same(`same') addlabel(`addlabel') ///
-		rangeexpansion(`rangeexpansion') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
+		missing_fraction(`missing_fraction') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
 	local min_nonmissing= r(min_nonmissing)
 	if (`addlabel')  decide_label_too_close, mat_label_coord("`label_coord'") min_distance(`label_min_dist') ///
 		missing_value(`missing_value') 
@@ -181,7 +182,7 @@ program define hammock
 	
 	// in trivial cases there may be fewer than 4 boxes. 
 	// 4 obs are needed for the rectangle vars
-	if (_N<4)  set obs 4 
+	if (_N<4)  qui set obs 4 
 
 
 	// labels + univariate bars
@@ -240,6 +241,7 @@ program define hammock
 //di "ystart yend xstart xend"
 //list `ystart' `yend' `xstart' `xend'
 //di "ystart=" `ystart' " yend(`yend')  xstart(`xstart') xend(`xend') ylow(`ylow') yhigh(`yhigh') ylaglow(`ylaglow') ylaghigh(`ylaghigh') xlow(`xlow') xhigh(`xhigh') xlaglow(`xlaglow') xlaghigh(`xlaghigh')  "
+
 
 	if (`space'!=float(1.0)) {
 		// each obs represents a unique box (with multiple colors)
@@ -1213,8 +1215,8 @@ program define GraphBoxColor
 		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
 		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
 		plotregion(style(none) m(zero)) ///
-		aspect(`aspectratio') `options'  ///
-		||  `addplot'  `addlabeltext' ///
+		aspect(`aspectratio') `options' ///
+		||  `addplot'  `addlabeltext'   ///
 		|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
 			colorvar(uni_color_var) colordiscrete colorlist(`uni_colorlist') clegend(off) 
  
@@ -1642,9 +1644,14 @@ end
 program transform_variable_range , rclass
 	version 16.0
 	syntax varlist ,  addlabel(int) same(int) mat_label_coord(str) miss(int) ///
-		rangeexpansion(real) [ samescale(varlist) ]
+		missing_fraction(real) [ samescale(varlist) ]
 
-	local min_nonmissing=0   // true unless there are missing values
+	if (`missing_fraction'>=1 | `missing_fraction'<=0) {
+		di as error "Unexpected value for missing_fraction: `missing_fraction' "
+		di as error "Value should be:  (0<missing_fraction<1)"
+		error 99
+		exit 
+		}
 
 	* compute max,min values over the variables specified in samescale
 	if `same' {
@@ -1667,6 +1674,7 @@ program transform_variable_range , rclass
 			local range=1	
 		}
 		local min=r(min)
+		local min_nonmissing=`min'  // save the value
 		if (`same' & ustrregexm("`samescale'","`v'")) {
 			* override calculations with variables specified in samescale
 			local range=`globalrange'
@@ -1676,27 +1684,22 @@ program transform_variable_range , rclass
 		qui gen `my_y'=`v'   
 		if (`miss') {
 			* missing option specified 
-			local missval=`min'-`rangeexpansion'*`range' // set missval a little bit below minimum
+			local missval=0   // specifying 0 rather than `missing_fraction'/2 because the lowest box is adjusted later anyways
+					//and I don't want to tell stata it does not have to start at 0.
 			// if `v' appears multiple times in varlist, it is important to change `my_y' and not `v' itself
-			qui replace `my_y'=`missval' if `my_y'==.
-			local min_nonmissing=`min'  // save the value
-			local min=`missval'  /* redefine minimum value and range */
-			local range=`range'*(1+`rangeexpansion')
+			local min=0 // scale starts from 0..100
 		}	
-		qui replace `my_y' = (`my_y'-`min')/ `range' * 100   // standardize to min=0, max=100 
+		qui replace `my_y' = (1-`missing_fraction') * (`my_y'-`min_nonmissing')/ `range' * 100 + `missing_fraction'*100  // standardize to min=missing_fraction*100, max=100 
+		if (`miss')  qui replace `my_y'=`missval' if `my_y'==.   
 		if `addlabel'==1 {
-			if (`miss') {
-				local min_nonmissing=(`min_nonmissing'-`min')/ `range' * 100  //duplicating calc below for min_nonmissing
-				// if !(`miss')  min_nomissing stays at 0
-			}
 			local n_labels = rowsof(`mat_label_coord') 
 			forval ii = 1 / `n_labels' {
 				if (`mat_label_coord'[`ii',2]==`i') { /* label belongs to variable `v' */
 					if (`mat_label_coord'[`ii',1]!=.) {
-						matrix `mat_label_coord'[`ii',1]= (`mat_label_coord'[`ii',1] -`min')/ `range' * 100
+						matrix `mat_label_coord'[`ii',1]= (1-`missing_fraction')*(`mat_label_coord'[`ii',1] -`min_nonmissing')/ `range'*100+ `missing_fraction'*100
 					}
 					else { //missing value
-						matrix `mat_label_coord'[`ii',1]= 0   // standardized range is from 0-100
+						matrix `mat_label_coord'[`ii',1]= 0   // position of label for missing vals
 					}
 				}
 			}
@@ -1780,4 +1783,5 @@ end
 //*! 2.0.4   Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables
 //*! 2.0.5   Nov 18, 2024: fixed bug: missing lowest non-missing uni-bar pushed into missing
 //*! 2.0.6   Nov 21, 2024: allow space(1.0); added subspace option
-//*! 2.0.7 Feb 26, 2024: changed default color; add check_hivalues_exist; draft add_unibars_compare
+//*! 2.0.7   Feb 26, 2024: changed default color; add check_hivalues_exist; draft add_unibars_compare
+//*! 2.0.8   Mar 28, 2024: option missing_fraction
