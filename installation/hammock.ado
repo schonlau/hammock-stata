@@ -1,5 +1,5 @@
 program define hammock
-*! 2.0.9 Mar 28, 2024:  removed bug for non-missing values with a missing label "."
+*! 2.1.0 Apr 18, 2024: redesigned/fixed placement of lowest, highest, and missing bars
 	version 14.2
 	syntax varlist [if] [in], [ ///
 		Missing missing_fraction(real .1) ///
@@ -105,7 +105,7 @@ program define hammock
 	if `addlabel'==1 {		
 		list_labels `varlist', label_text(`label_text') missing(`missing')  ///
 			label_format(`"`label_format'"') missing_value(`missing_value')
-		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values  
+		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values	
 		create_uni_matrix `varlist', ncolors(`ncolors') colorvar("colorgroup") missing(`missing') //univariate frequencies for each bar (separate by color)
 		matrix `uni_matrix' = r(uni_matrix)
 	}
@@ -113,12 +113,18 @@ program define hammock
 	* transform variables' range to be between 0 and 100, also adjust matrix w label coordinates
 	// Note this computes the midpoints (between 0 and 100), the upper/lower points may be a little wider
 	// Missing values after standardization (std_y) equal 0
+	local std_y="std_y" // stub name of variables created
+	local eps= 3  // adjust coordinates away from 0, 10, 100 by eps so that labels and bivariate bars print more nicely.
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
-	transform_variable_range `varlist', same(`same') addlabel(`addlabel') ///
+	// changes `label_coord'
+	transform_variable_range `varlist', same(`same') addlabel(`addlabel') std_y("`std_y'") ///
 		missing_fraction(`missing_fraction') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
-	local min_nonmissing= r(min_nonmissing)
+	// in an ideal word, the adjustment would not be constant `eps', but depends on the size of the box
+	adjust_mat_label_coord,  eps(`eps') mat_label_coord("`label_coord'") miss(`missing') missing_fraction(`missing_fraction')	
+	adjust_std_y  `std_y'* , eps(`eps')  miss(`missing') missing_fraction(`missing_fraction')	
 	if (`addlabel')  decide_label_too_close, mat_label_coord("`label_coord'") min_distance(`label_min_dist') ///
 		missing_value(`missing_value') 
+
 
 	* construct xlabel
 	local i=1
@@ -197,16 +203,14 @@ program define hammock
 	qui gen `color_uni'=.
 	local uni_width= `subspace'  *`varnamewidth'
 	
-
 	if `addlabel'==1 {
 		compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
 			label_text("`label_text'") labelopt(`"`labelopt'"')
 		local addlabeltext=r(addlabeltext) 
-		
 		add_unibars `yhi_uni' `ylo_uni' `x_uni' `color_uni', mat_label_coord(`label_coord') ///
-			mat_uni(`uni_matrix') uni_fraction(`uni_fraction') ncolors(`ncolors') 
+			mat_uni(`uni_matrix') uni_fraction(`uni_fraction') ncolors(`ncolors') missing_fraction(`missing_fraction')
 		local n_labels = rowsof(`label_coord')  //number of rows for one color
-		adjust_bar_placement `yhi_uni' `ylo_uni', n_lab(`n_labels') min_nonmissing(`min_nonmissing') ///
+		adjust_bar_placement `yhi_uni' `ylo_uni', n_lab(`n_labels') missing_fraction(`missing_fraction') ///
 			label_coord("`label_coord'")  m_val(`missing_value') 
 //local tmpmax= min(_N,40)
 //di "after addlabel: uni_ylo uni_yhi uni_x uni_color" 
@@ -238,6 +242,7 @@ program define hammock
 	}
 	local yrange=`ylabmax'-`ylabmin'
 
+// for parallelogram
 //di "ystart yend xstart xend"
 //list `ystart' `yend' `xstart' `xend'
 //di "ystart=" `ystart' " yend(`yend')  xstart(`xstart') xend(`xend') ylow(`ylow') yhigh(`yhigh') ylaglow(`ylaglow') ylaghigh(`ylaghigh') xlow(`xlow') xhigh(`xhigh') xlaglow(`xlaglow') xlaghigh(`xlaghigh')  "
@@ -391,14 +396,15 @@ end
 //		Some bars may exceed [lower,upper]=[~0,~100]. (Elsewhere, adjust bar down or up) 
 // input: 
 //	mat_uni			matrix with univariate frequencies (For all colours,rows appended)
-//	mat_label_coord	matrix with coordinates of labels (For the first colour only )
+//	mat_label_coord	matrix with coordinates of labels (For the first colour only;
+//										coordinates are not yet standardized to [0,100] )
 //	uni_fraction	(real) fraction of the univariate space covered with bars
 //	n_colors		(int) Number of colours 
 //	output:			variables yhi_uni, ylo_uni, x_uni,color_uni changed globally.
 program  add_unibars, rclass
 	version 18
 	syntax varlist (min=4 max=4), mat_label_coord(str) mat_uni(str) ///
-		ncolors(int) uni_fraction(real)
+		ncolors(int) uni_fraction(real) missing_fraction(real)
 
 	tokenize `varlist'
 	local yhi_uni `1'
@@ -406,7 +412,8 @@ program  add_unibars, rclass
 	local x_uni   `3'
 	local color_uni `4'
 	
-	local f=`uni_fraction'  //determines what percentage of the univariate space is covered with bars 
+	local f=`uni_fraction'*.9  //determines what percentage of the univariate space is covered with bars.
+								// .9 because `missing_fraction' (usually .1) is reserved for missings
 	if (`f'<0 | `f'>1) {
 		di as red "Unexpected input for uni_fraction(`f'). Expected values are 0.0-1.0" 
 		di as res ""   // subsequent displays are in black
@@ -424,6 +431,7 @@ program  add_unibars, rclass
 
 	// initialize for first color, (remember all colors appended after another) 
 	// var_label_coord'1  has only first color, but has '.' in the remaining rows, syntax error avoided
+	// *50 because the bar goes half way up and down (*0.5) times the scale *100
 	qui replace `ylo_uni'= `var_label_coord'1-`prop'*`f'*50  if _n<=`n_labels' // 
 	qui replace `yhi_uni'= `var_label_coord'1-`prop'*`f'*50 + `prop_one_color'*`f'*100  if _n<=`n_labels' //
 
@@ -537,21 +545,23 @@ end
 //If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
 //input:  	
 //	n_labels: number of labels= number of boxes for any one color
-// min_nonmissing:  0 if no missing ; ~9.09 if missing; position of the smallest non-missing label
+// missing_fraction:   0.1 by default
 // m_val :  missing_value, set to 5
 //on output: 
 //	yhi_uni, ylo_uni are changed for some bars 
 program adjust_bar_placement 
 	version 18
-	syntax varlist (min=2 max=2), n_lab(int) min_nonmissing(real) label_coord(str) m_val(int)
+	syntax varlist (min=2 max=2), n_lab(int) missing_fraction(real) label_coord(str) m_val(int)
 
 	tokenize `varlist'
 	local yhi_uni `1'
 	local ylo_uni `2'
 
+	local min_nonmissing= `missing_fraction'*100
+
 	//If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
-	//Note: If upper is e.g. 103,  some variables will go to 103 and others only to ~100
-	local eps=3 
+	//Note: previously I had eps=3, but eps is now set in adjust_label_coord
+	local eps=0 
 	local upper=100+`eps' // upper limit a bit above 100, so label is not on border
 	local lower=-`eps'
 	tempvar diff index i_within_color index2 sortorder diff2
@@ -612,11 +622,11 @@ program adjust_bar_placement
 end 
 /**********************************************************************************/
 * creates matrix with coordinates for labels and "label_text" variable in frame connectors
-* on input : missing_value  This value,5, is needed in label_too_close, I didn't want to define it inside of the function
+* on input : missing_value:  This value,5, is needed in label_too_close, I didn't want to define it inside of the function
 * on exit: `label_text' : variable in frame connectors with one row for each label 
 * on exit: label_coord: matrix with one row for each label 
 *    matrix has 3 cols: 
-*    1 variable values/levels (y-coordinate)  1..(# labels for corresponding variable)
+*    1 variable values/levels (actual value, not yet y-coordinate)  1..(# labels for corresponding variable)
 *    2 variable index in `varlist'  (x-coordinate) 1...(#variables) 
 *    3  takes values "." (start of a new variable, i.e. the first label of a new variable) and "5"  (missing_value) 
 program define list_labels, rclass
@@ -1641,10 +1651,10 @@ end
 // output: variables in varlist changed (we are in "preserve" mode, so changes disappear at the end)
 // output: label_coord matrix changed if labels are used
 // output: std_y`i' variables generated (lowest values (e.g. missing values) are standardized to 0)
-// note: miss is an int; previously option missing was present/absent
+// note: miss is an int; previously option missing was prestransform_variable_rangeent/absent
 program transform_variable_range , rclass
 	version 16.0
-	syntax varlist ,  addlabel(int) same(int) mat_label_coord(str) miss(int) ///
+	syntax varlist ,  addlabel(int) same(int) mat_label_coord(str) miss(int) std_y(str) ///
 		missing_fraction(real) [ samescale(varlist) ]
 
 	if (`missing_fraction'>=1 | `missing_fraction'<=0) {
@@ -1681,15 +1691,16 @@ program transform_variable_range , rclass
 			local range=`globalrange'
 			local min=`globalmin'
 		}
-		local my_y  "std_y`i'"
+		local my_y  "`std_y'`i'"
 		qui gen `my_y'=`v'   
 		if (`miss') {
 			* missing option specified 
-			local missval=0   // specifying 0 rather than `missing_fraction'/2 because the lowest box is adjusted later anyways
+			local missval=0  // specify 0 rather than `missing_fraction'/2*100 because the lowest box is adjusted later anyways
 					//and I don't want to tell stata it does not have to start at 0.
 			// if `v' appears multiple times in varlist, it is important to change `my_y' and not `v' itself
 			local min=0 // scale starts from 0..100
 		}	
+		// compress placements of values between 10 and 100 (i.e. `missing_fraction'*100 and 100)
 		qui replace `my_y' = (1-`missing_fraction') * (`my_y'-`min_nonmissing')/ `range' * 100 + `missing_fraction'*100  // standardize to min=missing_fraction*100, max=100 
 		if (`miss')  qui replace `my_y'=`missval' if `my_y'==.   
 		if `addlabel'==1 {
@@ -1707,7 +1718,44 @@ program transform_variable_range , rclass
 		}
 		
 	}
-	return local min_nonmissing `min_nonmissing' // y-coordinate of smallest non-missing value
+end
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Purpose : change position in label_coord by `eps' avoiding  0, (missing_fraction*100), and 100.
+//		change by eps because I don't know the midpoints yet
+//		this mirrors adjustments for uni_bars such that the bottom (rather than midpoint) 
+//			starts at  0, (missing_fraction*100) and the top at 100.
+program adjust_mat_label_coord , rclass
+	version 18.0
+	syntax  ,  eps(real) mat_label_coord(str) miss(int) missing_fraction(real)
+	
+	local  ten= `missing_fraction'*100  // by default this will be 10 (with missings) or 0 (without missings)
+	local n_labels = rowsof(`mat_label_coord')
+	forval i = 1 / `n_labels' {
+		if (`mat_label_coord'[`i',1]==0)  {
+			matrix `mat_label_coord'[`i',1]=`eps'
+		}
+		if ((`mat_label_coord'[`i',1]==`ten')) {
+			matrix `mat_label_coord'[`i',1]=`ten'+`eps'	
+		}
+		if (`mat_label_coord'[`i',1]==100)  {
+			matrix `mat_label_coord'[`i',1]=100-`eps'	
+		}
+	}
+end 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Purpose: change y_std  by `eps' avoiding  0, missing_fraction*100, and 100.
+//		analogous to adjust_mat_label_coord
+// on output: changes std_y`i'
+program adjust_std_y 
+	version 18.0
+	syntax varlist, eps(real) miss(int) missing_fraction(real)
+	
+	local ten= `missing_fraction'*100  // by default this will be 10 (with missings) or 0 (without missings)
+	foreach var of varlist `varlist' {
+		qui replace `var'=`eps' if  `var'==0
+		qui replace `var'=100-`eps' if `var'==100
+		qui replace `var'=`ten'+`eps' if `var'==`ten'
+	}
 end
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // purpose :  	decide whether the  label distance on the y-axis is too close. If yes, set mat_label_coord[,3]==0
@@ -1727,7 +1775,6 @@ program decide_label_too_close
 		if (`mat_label_coord'[`j',3]==`missing_value') { 
 			// missing value label
 			// keep value of  mat_label_coord[,3]=5 
-			matrix `mat_label_coord'[`offset'+`j',1]=0 // safety; was set to 0 during variable transform/ expansion
 			local add_dist=0 // safety; not needed because missing value is last category for a given variable
 		}
 		else if (`mat_label_coord'[`j',3]!=.) {
@@ -1787,3 +1834,4 @@ end
 //*! 2.0.7   Feb 26, 2024: changed default color; add check_hivalues_exist; draft add_unibars_compare
 //*! 2.0.8   Mar 28, 2024: option missing_fraction
 //*! 2.0.9   Mar 31, 2024:  removed bug for non-missing values with a missing label "."
+//*! 2.1.0 	 Apr 18, 2024: redesigned/fixed placement of lowest, highest, and missing bars
