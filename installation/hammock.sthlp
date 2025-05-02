@@ -22,7 +22,7 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synoptline}
 {syntab :Main}
 {synopt :{opt m:issing}} Show missing values {p_end}
-{synopt :{opt lab:el}} Show value labels and univariate bars {p_end}
+{synopt :{opt nolab:el}} Do not show value labels / univariate bars {p_end}
 
 {syntab :Highlighting}
 {synopt :{opt hivar:iable(varname)}} Name of variable to highlight {p_end}
@@ -36,6 +36,7 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synopt :{opt labelopt(str)}} Pass options to {it:{help added_text_options}}, e.g. to manipulate label text size{p_end}
 {synopt :{opt uni_fraction(real)}} For univariate bars, proportion of vertical space covered with bars {p_end}
 {synopt :{opt missing_fraction(real)}} Proportion of vertical space allocated to missing values {p_end}
+{synopt :{opt same:scale(varlist)}} Use the same axis scale for each variable specified {p_end}
 {synopt :{opt label_format(str)}} (rarely needed) Display format of numerical labels {p_end}
 {synopt :{opt subspace(real)}} (rarely needed) adjust empty space between univariate bars and connectors {p_end}
 
@@ -43,11 +44,10 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synopt :{opt bar:width(real)}} Change width of the connecting boxes to reduce clutter {p_end}
 {synopt :{opt minbar:freq(int)}} Specify minimum box width {p_end}
 {synopt :{opt shape(str)}} Box shape: "parallelogram" or "rectangle" (default) {p_end}
-{synopt :{opt no_outline}} (rarely needed) Do not outline the edges of semi-translucent boxes {p_end}
+{synopt :{opt outline}} (rarely needed) Outline the edges of semi-translucent connecting boxes {p_end}
 
 {syntab :Other options}
 {synopt :{opt aspect:ratio(real)}} (rarely needed) Aspect ratio of the plot region {p_end}
-{synopt :{opt same:scale(varlist)}} Use the same axis scale for each variable specified {p_end}
 {synopt :graph_options} Specify additional options passed to  {it:graph, twoway}  {p_end}
 {synoptline}
 
@@ -73,9 +73,10 @@ will usually appear to be a single line because each category typically
  only contains one observation.
 
 {pstd} The order of variables in {it:varlist} determines the order of variables in the graph.  
-All variables in {it:varlist} must be numerical, but value labels can be used to assign labels to values.  
+All variables in {it:varlist} must be numerical, but value labels can be used to assign labels to values. 
 String variables should be 
 converted to numerical variables first, e.g. using {cmd: encode} or {cmd: destring}. 
+Each axis is labeled with the corresponding variable name or variable label, if specified. 
 
 {title:Installation}
 {phang} 
@@ -95,9 +96,9 @@ Installation via SSC:
 {title:Options}
 {dlgtab:Main}
 
-{phang} {opt label} 
-requests value {it:{help labels}} 
- to be displayed on the graph. For variables for which value labels are not defined,  
+{phang} {opt nolabel} 
+requests value {it:{help labels}} and univariate bars 
+ not to be displayed on the graph. For variables for which value labels are not defined,  
 the values themselves are displayed. This makes it easier to identify which category
 is displayed where. 
 
@@ -170,7 +171,7 @@ or {it:uni_colorlist(bg bg)} if there is one highlighting color.
 
 {phang}
 {opt space} specifies the fraction of plot allocated for 
-displaying labels. If {it:label} is specified, the default is 0.3, meaning 30% of the available
+displaying labels / univariate bars. If {it:label} is specified, the default is 0.3, meaning 30% of the available
  space is allocated to the univariate bars and the labels, and 70% for the graph elements.
  If {it:label} is not specified, the default is 0. 
  {it:space(1)} is the edge case where only univariate bars are shown.
@@ -205,6 +206,12 @@ or to improve layout according to user taste.
 {opt missing_fraction(real)} Proportion of vertical space allocated to missing values. By default, {it:missing_fraction(0.1)}.
 When the proportion of missing values is so large that the missing value boxes overlap with boxes above,
 this option can be used to increase the space allocated to missing values and thus to prevent such overlap. {p_end}
+
+{phang}
+{opt samescale} specifies that for the list of variables specified each axis should have the same scale. 
+The list of variables can be a subset of {it:varlist} or the entire list: {it: samescale(_all)}. 
+This is useful, for example, if one categorical variable has been repeatedly measured over time, 
+but not all categories occur each at each time point.
 
 {phang}
 {opt label_format(string)} (rarely used) For numerical labels, display format of the numerical value. 
@@ -253,10 +260,10 @@ Focusing on the end points of the boxes, can create the illusion that there are 
 than there really are. 
 
 {phang}
-{opt no_outline}  In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
+{opt outline}  In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
 are drawn with an outline that is not translucent.
 If there are several overlapping colors, it may be visually simpler to show the translucent box 
-without outlining the edges of the box. This option removes the outline.
+without outlining the edges of the box. This option adds the outline back in.
  This option only effects semi-translucent colors; it has no effect on regular colors (e.g. "red"). 
 
 
@@ -267,12 +274,6 @@ without outlining the edges of the box. This option removes the outline.
 also affects the space between the plot region and the available area. 
 If a long variable name displays partially outside the graph area, increasing the aspect ratio is 
 one way of ensuring variable names are fully visible. 
-
-{phang}
-{opt samescale} specifies that for the list of variables specified each axis should have the same scale. 
-The list of variables can be a subset of {it:varlist} or the entire list: {it: samescale(_all)}. 
-This is useful, for example, if one categorical variable has been repeatedly measured over time, 
-but not all categories occur each at each time point.
 
 {phang}
 {it:graph_options} are options of {cmd: graph, twoway} other than 
@@ -295,7 +296,7 @@ and the range of the x-axis is 1 to the number of variables.
 
 {phang2}{cmd:. sysuse bplong}{p_end}
 	
-{phang2}{cmd:. hammock sex agegrp when bp, label}{p_end}
+{phang2}{cmd:. hammock sex agegrp when bp}{p_end}
 
 {pstd} We find that the graph elements between the variables are equally thick,
 meaning that they correspond to the same number of people. 
@@ -321,7 +322,7 @@ The lowest blood pressures all belong to the "after" group.
 
 {pstd} We found "placebo" is the label for the value 1.
 
-{phang2}{cmd:. hammock died drug studytime age, label hivar(drug) hival(1) barwidth(.5) labelopt(size(small))}{p_end}
+{phang2}{cmd:. hammock died drug studytime age,  hivar(drug) hival(1) barwidth(.5) labelopt(size(small))}{p_end}
 
 {pstd} We chose width of the bars half as large as the default to reduce visual clutter. 
 To improve the display, we also specified that the size of labels for all variables should be "small" 
@@ -387,7 +388,7 @@ Here, there is no discernible pattern to the missing values.
 
 {pstd} We visually confirm that everything is as expected:
 
-{phang2}{cmd:. 	hammock age agegroup, m space(0.1) label hivar(agegroup) hival(1 2 6 12)}
+{phang2}{cmd:. 	hammock age agegroup, m space(0.1)  hivar(agegroup) hival(1 2 6 12)}
 
 {pstd}{it:({stata hammock_examples hammock_agegroup:click to run})}{p_end}
 
@@ -397,7 +398,7 @@ We also add a little more space to the left and right margins so the variable na
 
 {phang2}{cmd:. 	egen agegroup2= cut(age), at(0,1,2,6,12,16,19)}
 
-{phang2}{cmd:. 	hammock age agegroup2, m space(.1) label hivar(agegroup2) hival(0 1 2 6 12 16) graphregion(margin(l+2 r+3))}
+{phang2}{cmd:. 	hammock age agegroup2, m space(.1)  hivar(agegroup2) hival(0 1 2 6 12 16) graphregion(margin(l+2 r+3))}
 
 {pstd}{it:({stata hammock_examples hammock_agegroup2:click to run})}{p_end}
 

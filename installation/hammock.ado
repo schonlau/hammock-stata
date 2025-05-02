@@ -1,15 +1,14 @@
 program define hammock
-*! 2.1.0 Apr 18, 2024: redesigned/fixed placement of lowest, highest, and missing bars
-	version 14.2
+*! 2.1.1 May2, 2025: axes label with variable *labels*; options label as default; outline off by default
 	syntax varlist [if] [in], [ ///
 		Missing missing_fraction(real .1) ///
 		BARwidth(real 1) MINBARfreq(int 1) ///
 		hivar(str) HIVALues(string) /// 
 		SPAce(real 0.0)  subspace(real 0.8) ///
-		LABel labelopt(str) label_min_dist(real 3.0) label_format(str) ///
+		noLABel labelopt(str) label_min_dist(real 3.0) label_format(str) ///
 		SAMEscale(varlist)  ///
 		uni_fraction(real .5) uni_colorlist(str) ///
-		ASPECTratio(real 0.72727) COLorlist(str) shape(str) no_outline  * ]
+		ASPECTratio(real 0.72727) COLorlist(str) shape(str) outline  * ]
 
 	foreach v of local varlist {
 		capture confirm numeric variable `v'
@@ -23,9 +22,9 @@ program define hammock
 
 	local missing = "`missing'" != ""
 	local missing_value=5  // label_coord[.,3]=`missing_value' to indicate missing values for that category
-	local addlabel= "`label'" != ""
+	local addlabel= 1- ("`label'" == "nolabel") //options that start with "no" have different syntax 
 	local same = "`samescale'" !=""
-	local outline = 1- ("`_outline'" == "no_outline") //options that start with "no" have different syntax 
+	local outline = "`outline'" != "" 
 
 	if ("`shape'"=="") local shape="rectangle"
 
@@ -119,8 +118,9 @@ program define hammock
 	// changes `label_coord'
 	transform_variable_range `varlist', same(`same') addlabel(`addlabel') std_y("`std_y'") ///
 		missing_fraction(`missing_fraction') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
-	// in an ideal word, the adjustment would not be constant `eps', but depends on the size of the box
-	adjust_mat_label_coord,  eps(`eps') mat_label_coord("`label_coord'") miss(`missing') missing_fraction(`missing_fraction')	
+	// in an ideal word, the adjustment would not be constant `eps', but depend on the size of the box
+	if (`addlabel') adjust_mat_label_coord,  eps(`eps') mat_label_coord("`label_coord'") ///
+			miss(`missing') missing_fraction(`missing_fraction')	
 	adjust_std_y  `std_y'* , eps(`eps')  miss(`missing') missing_fraction(`missing_fraction')	
 	if (`addlabel')  decide_label_too_close, mat_label_coord("`label_coord'") min_distance(`label_min_dist') ///
 		missing_value(`missing_value') 
@@ -129,14 +129,19 @@ program define hammock
 	* construct xlabel
 	local i=1
 	foreach v of var `varlist' {
-		if mod(`i', 2)  local xl "`xl' `i'" 
-		else 			local tl "`tl' `i'" 
-		local xlabel "`xlabel' `i' ``i''"
+		local xl "`xl' `i'" 
+		local lbl : variable label ``i''
+		if ("`lbl'"=="") {  //if no label
+			local xlabel `"`xlabel' `i' ``i''"'  // use variable name
+		}
+		else { // if label exists
+			local xlabel `"`xlabel' `i' "`lbl'""'  //  use variable label
+			//assume label `lbl' does not already have a set of quotes " "
+			//i.e. we would get an error for the unlikely definition:  label var  x1 `""one" "two""'
+		}
 		local i = `i' + 1
 	}
-	local xl = substr("`xl'", 2, .)
 	local xlab_num "`xl'"
-	local xlab_num "`xl'`tl'" 
 
 
 	* transform the data from one obs per data point to one obs per graphbox 
@@ -290,7 +295,7 @@ program plot_unibars
 	//as a workaround I'm defining a permanent variable until Stata fixes this issue
 	qui gen uni_color_var=`uni_color'
 
-	// changes: `addplot' contains the boxes and is removed; option `addlabeltext' is then moved elsewhere
+	// changes relative to other scatter: `addplot' contains the boxes and is removed; option `addlabeltext' is then moved elsewhere
 	twoway scatter std_y `graphx', ///
 		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
 		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
@@ -1831,7 +1836,8 @@ end
 //*! 2.0.4   Nov 14, 2024: rewrote labels (using frames instead of tokenize). Better error message for string variables
 //*! 2.0.5   Nov 18, 2024: fixed bug: missing lowest non-missing uni-bar pushed into missing
 //*! 2.0.6   Nov 21, 2024: allow space(1.0); added subspace option
-//*! 2.0.7   Feb 26, 2024: changed default color; add check_hivalues_exist; draft add_unibars_compare
-//*! 2.0.8   Mar 28, 2024: option missing_fraction
-//*! 2.0.9   Mar 31, 2024:  removed bug for non-missing values with a missing label "."
-//*! 2.1.0 	 Apr 18, 2024: redesigned/fixed placement of lowest, highest, and missing bars
+//*! 2.0.7   Feb 26, 2025: changed default color; add check_hivalues_exist; draft add_unibars_compare
+//*! 2.0.8   Mar 28, 2025: option missing_fraction
+//*! 2.0.9   Mar 31, 2025: removed bug for non-missing values with a missing label "."
+//*! 2.1.0 	 Apr 18, 2025: redesigned/fixed placement of lowest, highest, and missing bars
+//*! 2.1.1 	 May  2, 2025: axes label with variable *labels*; options label as default; outline off by default
