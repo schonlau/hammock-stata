@@ -1,5 +1,5 @@
 program define hammock
-*! 2.1.1 May2, 2025: axes label with variable *labels*; options label as default; outline off by default
+*! 2.1.2  May  12, 2025: fixed bug placing the highest label, added option unibar, fixed bug related to samescale
 	syntax varlist [if] [in], [ ///
 		Missing missing_fraction(real .1) ///
 		BARwidth(real 1) MINBARfreq(int 1) ///
@@ -7,7 +7,7 @@ program define hammock
 		SPAce(real 0.0)  subspace(real 0.8) ///
 		noLABel labelopt(str) label_min_dist(real 3.0) label_format(str) ///
 		SAMEscale(varlist)  ///
-		uni_fraction(real .5) uni_colorlist(str) ///
+		noUNIbar uni_fraction(real .5) uni_colorlist(str) ///
 		ASPECTratio(real 0.72727) COLorlist(str) shape(str) outline  * ]
 
 	foreach v of local varlist {
@@ -23,13 +23,14 @@ program define hammock
 	local missing = "`missing'" != ""
 	local missing_value=5  // label_coord[.,3]=`missing_value' to indicate missing values for that category
 	local addlabel= 1- ("`label'" == "nolabel") //options that start with "no" have different syntax 
+	local adduni= 1- ("`unibar'" == "nounibar") //options that start with "no" have different syntax 
 	local same = "`samescale'" !=""
 	local outline = "`outline'" != "" 
 
 	if ("`shape'"=="") local shape="rectangle"
 
 	local varnamewidth=`space' /*=percentage of space given to text as opposed to the graph*/
-	if `addlabel'!=0 & `space'==float(0) {
+	if (`addlabel'!=0 | `adduni') & `space'==float(0) {
 		local varnamewidth=0.3   // if addlabel, change the default space to 0.3
 	}								   
 																		
@@ -100,8 +101,8 @@ program define hammock
 	local ncolors=r(r) // number of colors
 	
 	cap frame drop connectors
-	frame create connectors   // only used if `addlabel'; but safer to create always
-	if `addlabel'==1 {		
+	frame create connectors   // only used if `addlabel' | `adduni'; but safer to create always
+	if (`addlabel'==1 | `adduni') {		
 		list_labels `varlist', label_text(`label_text') missing(`missing')  ///
 			label_format(`"`label_format'"') missing_value(`missing_value')
 		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values	
@@ -116,13 +117,13 @@ program define hammock
 	local eps= 3  // adjust coordinates away from 0, 10, 100 by eps so that labels and bivariate bars print more nicely.
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
 	// changes `label_coord'
-	transform_variable_range `varlist', same(`same') addlabel(`addlabel') std_y("`std_y'") ///
+	transform_variable_range `varlist', same(`same') addlabel(`addlabel') adduni(`adduni') std_y("`std_y'") ///
 		missing_fraction(`missing_fraction') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
 	// in an ideal word, the adjustment would not be constant `eps', but depend on the size of the box
-	if (`addlabel') adjust_mat_label_coord,  eps(`eps') mat_label_coord("`label_coord'") ///
+	if (`addlabel' | `adduni') adjust_mat_label_coord,  eps(`eps') mat_label_coord("`label_coord'") ///
 			miss(`missing') missing_fraction(`missing_fraction')	
 	adjust_std_y  `std_y'* , eps(`eps')  miss(`missing') missing_fraction(`missing_fraction')	
-	if (`addlabel')  decide_label_too_close, mat_label_coord("`label_coord'") min_distance(`label_min_dist') ///
+	if (`addlabel' | `adduni')  decide_label_too_close, mat_label_coord("`label_coord'") min_distance(`label_min_dist') ///
 		missing_value(`missing_value') 
 
 
@@ -207,23 +208,25 @@ program define hammock
 	qui gen `x_uni'=.
 	qui gen `color_uni'=.
 	local uni_width= `subspace'  *`varnamewidth'
-	
-	if `addlabel'==1 {
+
+	if (`addlabel'==1) {
 		compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
 			label_text("`label_text'") labelopt(`"`labelopt'"')
 		local addlabeltext=r(addlabeltext) 
+	}
+	else  local addlabeltext=""
+	if (`adduni') {
 		add_unibars `yhi_uni' `ylo_uni' `x_uni' `color_uni', mat_label_coord(`label_coord') ///
 			mat_uni(`uni_matrix') uni_fraction(`uni_fraction') ncolors(`ncolors') missing_fraction(`missing_fraction')
 		local n_labels = rowsof(`label_coord')  //number of rows for one color
 		adjust_bar_placement `yhi_uni' `ylo_uni', n_lab(`n_labels') missing_fraction(`missing_fraction') ///
 			label_coord("`label_coord'")  m_val(`missing_value') 
-//local tmpmax= min(_N,40)
-//di "after addlabel: uni_ylo uni_yhi uni_x uni_color" 
-//list  `ylo_uni' `yhi_uni' `x_uni' `color_uni' in 1/`tmpmax'
+//local tmpmax= min(_N,20)
+//di "after adduni: uni_ylo uni_yhi uni_x uni_color" 
+//list  `ylo_uni' `yhi_uni' `x_uni' `color_uni' in 1/`tmpmax' 
 //frame connectors: list _all
 //matrix list `label_coord'
 	}
-	else  local addlabeltext=""
 
 	// compute ylabmin (midpoint-1/2 width) and ylabmax (midpoint+1/2 width)
 	// If y_std contains missing values they are coded 0, just like any other minimum value
@@ -1659,7 +1662,7 @@ end
 // note: miss is an int; previously option missing was prestransform_variable_rangeent/absent
 program transform_variable_range , rclass
 	version 16.0
-	syntax varlist ,  addlabel(int) same(int) mat_label_coord(str) miss(int) std_y(str) ///
+	syntax varlist ,  addlabel(int) adduni(int) same(int) mat_label_coord(str) miss(int) std_y(str) ///
 		missing_fraction(real) [ samescale(varlist) ]
 
 	if (`missing_fraction'>=1 | `missing_fraction'<=0) {
@@ -1689,12 +1692,11 @@ program transform_variable_range , rclass
 			* var has only one value
 			local range=1	
 		}
-		local min=r(min)
-		local min_nonmissing=`min'  // save the value
+		local min_nonmissing=r(min)  // save the value
 		if (`same' & ustrregexm("`samescale'","`v'")) {
 			* override calculations with variables specified in samescale
 			local range=`globalrange'
-			local min=`globalmin'
+			local min_nonmissing=`globalmin'
 		}
 		local my_y  "`std_y'`i'"
 		qui gen `my_y'=`v'   
@@ -1703,12 +1705,11 @@ program transform_variable_range , rclass
 			local missval=0  // specify 0 rather than `missing_fraction'/2*100 because the lowest box is adjusted later anyways
 					//and I don't want to tell stata it does not have to start at 0.
 			// if `v' appears multiple times in varlist, it is important to change `my_y' and not `v' itself
-			local min=0 // scale starts from 0..100
 		}	
 		// compress placements of values between 10 and 100 (i.e. `missing_fraction'*100 and 100)
 		qui replace `my_y' = (1-`missing_fraction') * (`my_y'-`min_nonmissing')/ `range' * 100 + `missing_fraction'*100  // standardize to min=missing_fraction*100, max=100 
 		if (`miss')  qui replace `my_y'=`missval' if `my_y'==.   
-		if `addlabel'==1 {
+		if (`addlabel'==1 | `adduni')  {
 			local n_labels = rowsof(`mat_label_coord') 
 			forval ii = 1 / `n_labels' {
 				if (`mat_label_coord'[`ii',2]==`i') { /* label belongs to variable `v' */
@@ -1723,6 +1724,7 @@ program transform_variable_range , rclass
 		}
 		
 	}
+//matrix list `mat_label_coord'
 end
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Purpose : change position in label_coord by `eps' avoiding  0, (missing_fraction*100), and 100.
@@ -1732,17 +1734,18 @@ end
 program adjust_mat_label_coord , rclass
 	version 18.0
 	syntax  ,  eps(real) mat_label_coord(str) miss(int) missing_fraction(real)
-	
+
 	local  ten= `missing_fraction'*100  // by default this will be 10 (with missings) or 0 (without missings)
 	local n_labels = rowsof(`mat_label_coord')
+
 	forval i = 1 / `n_labels' {
-		if (`mat_label_coord'[`i',1]==0)  {
+		if (float(`mat_label_coord'[`i',1])==float(0))  {
 			matrix `mat_label_coord'[`i',1]=`eps'
 		}
-		if ((`mat_label_coord'[`i',1]==`ten')) {
+		else if ((float(`mat_label_coord'[`i',1])==float(`ten'))) {
 			matrix `mat_label_coord'[`i',1]=`ten'+`eps'	
 		}
-		if (`mat_label_coord'[`i',1]==100)  {
+		else if (float(`mat_label_coord'[`i',1])==float(100))  {
 			matrix `mat_label_coord'[`i',1]=100-`eps'	
 		}
 	}
@@ -1801,21 +1804,21 @@ program decide_label_too_close
 end 
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //Version 
-//*! 1.0.0   21 February 2003 Matthias Schonlau 
-//*! 1.0.1   2 March 2003: Allow variables with one value, Bug fixed when barwidth was too large \ 
-//*! 1.0.2   13 March 2003: width changed to right-angle-width
-//*! 1.0.3   20 Nov 2003: hivar and hival options implemented \
-//*! 1.0.4   no changes \
-//*! 1.0.5   4 Nov 2008: added samescale option, fixed bug related to >8 colors
-//*! 1.1.0    ongoing 2017: major rewrite due to use of twoway rarea for parallelograms
-//*! 1.1.1    17 May 2022: added labeltextsize option
-//*! 1.1.2    19 May 2022: added argument to samescale option
-//*! 1.1.3    30 June 2022: fixed bug when not enough colors specified for highlighting
-//*! 1.1.4    July 7 2022: missing values can now be highlighted
-//*! 1.2.0    August 11, 2022: shape rectangle added 
-//*! 1.2.1    Nov 15, 2022: rectangle is default shape, space allowed w/o label, update helpfile
-//*! 1.2.2    Jan 27, 2023: minbarfreq option added
-//*! 1.2.3    Apr 12, 2023: Added warning if label value contains only white space
+//*! 1.0.0   Feb 21, 2003 Matthias Schonlau 
+//*! 1.0.1   Mar  2, 2003: Allow variables with one value, Bug fixed when barwidth was too large 
+//*! 1.0.2   Mar 13, 2003: width changed to right-angle-width
+//*! 1.0.3   Nov 20, 2003: hivar and hival options implemented 
+//*! 1.0.4   no changes 
+//*! 1.0.5   Nov  4, 2008: added samescale option, fixed bug related to >8 colors
+//*! 1.1.0   ongoing 2017: major rewrite due to use of twoway rarea for parallelograms
+//*! 1.1.1   May 17, 2022: added labeltextsize option
+//*! 1.1.2   May 19, 2022: added argument to samescale option
+//*! 1.1.3   Jun 30, 2022: fixed bug when not enough colors specified for highlighting
+//*! 1.1.4   Jul  7, 2022: missing values can now be highlighted
+//*! 1.2.0   Aug 11, 2022: shape rectangle added 
+//*! 1.2.1   Nov 15, 2022: rectangle is default shape, space allowed w/o label, update helpfile
+//*! 1.2.2   Jan 27, 2023: minbarfreq option added
+//*! 1.2.3   Apr 12, 2023: Added warning if label value contains only white space
 //*! 1.2.4   May 24, 2023: label_min_dist option
 //*! 1.2.5   Oct 10, 2023: added option outline 
 //*! 1.2.6   Nov 10, 2023: allow hivar to be a string variable 
@@ -1841,3 +1844,4 @@ end
 //*! 2.0.9   Mar 31, 2025: removed bug for non-missing values with a missing label "."
 //*! 2.1.0 	 Apr 18, 2025: redesigned/fixed placement of lowest, highest, and missing bars
 //*! 2.1.1 	 May  2, 2025: axes label with variable *labels*; options label as default; outline off by default
+//*! 2.1.2 	 May 12, 2025: fixed bug placing the highest label, added option unibar,fixed bug related to samescale

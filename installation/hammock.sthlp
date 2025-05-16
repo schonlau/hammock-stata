@@ -20,9 +20,6 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synoptset 20 tabbed}{...}
 {synopthdr}
 {synoptline}
-{syntab :Main}
-{synopt :{opt m:issing}} Show missing values {p_end}
-{synopt :{opt nolab:el}} Do not show value labels / univariate bars {p_end}
 
 {syntab :Highlighting}
 {synopt :{opt hivar:iable(varname)}} Name of variable to highlight {p_end}
@@ -30,15 +27,19 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synopt :{opt col:orlist(str)}} Default color and colors for highlighting {p_end}
 {synopt :{opt uni_colorlist(str)}} Default color and colors for highlighting for univariate bars {p_end}
 
-{syntab :Layout of labels and univariate bars}
-{synopt :{opt spa:ce(real)}} Control fraction of space allocated to labels/univ. bars rather than to connecting boxes {p_end}
+{syntab :Layout of univariate bars}
+{synopt :{opt nouni:bar}} Do not show value labels  {p_end}
+{synopt :{opt uni_fraction(real)}} For univariate bars, proportion of vertical space covered with bars {p_end}
+
+{syntab :Layout of labels}
+{synopt :{opt nolab:el}} Do not show value labels  {p_end}
 {synopt :{opt label_min_dist(real)}} Specify minimum distance between two labels on the same axis{p_end}
 {synopt :{opt labelopt(str)}} Pass options to {it:{help added_text_options}}, e.g. to manipulate label text size{p_end}
-{synopt :{opt uni_fraction(real)}} For univariate bars, proportion of vertical space covered with bars {p_end}
-{synopt :{opt missing_fraction(real)}} Proportion of vertical space allocated to missing values {p_end}
-{synopt :{opt same:scale(varlist)}} Use the same axis scale for each variable specified {p_end}
 {synopt :{opt label_format(str)}} (rarely needed) Display format of numerical labels {p_end}
-{synopt :{opt subspace(real)}} (rarely needed) adjust empty space between univariate bars and connectors {p_end}
+
+{syntab :Missing values}
+{synopt :{opt m:issing}} Show missing values {p_end}
+{synopt :{opt missing_fraction(real)}} Proportion of vertical space allocated to missing values {p_end}
 
 {syntab :Layout of boxes in between axes}
 {synopt :{opt bar:width(real)}} Change width of the connecting boxes to reduce clutter {p_end}
@@ -47,6 +48,9 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synopt :{opt outline}} (rarely needed) Outline the edges of semi-translucent connecting boxes {p_end}
 
 {syntab :Other options}
+{synopt :{opt spa:ce(real)}} Control fraction of space allocated to labels/univ. bars rather than to connecting boxes {p_end}
+{synopt :{opt same:scale(varlist)}} Use the same axis scale for each variable specified {p_end}
+{synopt :{opt subspace(real)}} (rarely needed) adjust empty space between univariate bars and connectors {p_end}
 {synopt :{opt aspect:ratio(real)}} (rarely needed) Aspect ratio of the plot region {p_end}
 {synopt :graph_options} Specify additional options passed to  {it:graph, twoway}  {p_end}
 {synoptline}
@@ -94,21 +98,6 @@ Installation via SSC:
 
 
 {title:Options}
-{dlgtab:Main}
-
-{phang} {opt nolabel} 
-requests value {it:{help labels}} and univariate bars 
- not to be displayed on the graph. For variables for which value labels are not defined,  
-the values themselves are displayed. This makes it easier to identify which category
-is displayed where. 
-
-{phang}
-{opt missing} specifies that "missing value" is a separate category. 
-The "missing value category" is always the lowest category drawn at 
-the bottom of the graph. A vertical line is drawn to separate missing values
-from non-missing values. If there are no missing values the space below 
-the vertical line remains empty.
-If this option is not specified, observations with missing values are ignored.
 
 {dlgtab:Highlighting}
 
@@ -167,16 +156,26 @@ To avoid univariate bars altogether, specify {it:uni_colorlist(bg)}
 or {it:uni_colorlist(bg bg)} if there is one highlighting color.
 ({it:bg} stands for background color, the bars will be invisible).
 
-{dlgtab:Layout of labels and univariate bars}
+
+{dlgtab:Layout of univariate bars}
+
+{phang} {opt nounibar} 
+requests value univariate bars not to be displayed on the graph. 
 
 {phang}
-{opt space} specifies the fraction of plot allocated for 
-displaying labels / univariate bars. If {it:label} is specified, the default is 0.3, meaning 30% of the available
- space is allocated to the univariate bars and the labels, and 70% for the graph elements.
- If {it:label} is not specified, the default is 0. 
- {it:space(1)} is the edge case where only univariate bars are shown.
- {it:space(0)} is the edge case where only bivariate connectors are shown. 
- 
+{opt uni_fraction(real)} For univariate bars, proportion of vertical space covered with bars. 
+By default, {it:uni_fraction(0.5)}. This option can be used to avoid overlapping univariate bars
+or to improve layout according to user taste.
+
+
+{dlgtab:Layout of labels}
+
+{phang} {opt nolabel} 
+requests value {it:{help labels}}  
+ not to be displayed on the graph. For variables for which value labels are not defined,  
+the values themselves are displayed. This makes it easier to identify which category
+is displayed where. 
+
 {phang}
 {opt label_min_dist} specifies the minimum distance between two labels on the same axis.
 A label is associated with each unique value of a variable.  
@@ -189,44 +188,36 @@ By default, a label must be at least 3 units (out of 100) away from the closest 
 Specifying {it:label_min_dist(0)} will plot all labels.
 Specifying {it:label_min_dist(100)} will plot only the bottom and the top label.
 This option has no effect unless {it:label} is specified.
-  
-{phang}
-{opt labelopt} specifies optional arguments to the labels.
-The arguments are passed  to {it:{help added_text_options}}. 
-This can be used to manipulate the text sizes of the labels, for example, {it: labelopt(size(vsmall))}.
-Text size names are explained in {it:{help textsizestyle}}. 
-By default, label size is "medium". If option {it:label} is not specified,  option {it:labelopt} is ignored. 
-
-{phang}
-{opt uni_fraction(real)} For univariate bars, proportion of vertical space covered with bars. 
-By default, {it:uni_fraction(0.5)}. This option can be used to avoid overlapping univariate bars
-or to improve layout according to user taste.
-
-{phang}
-{opt missing_fraction(real)} Proportion of vertical space allocated to missing values. By default, {it:missing_fraction(0.1)}.
-When the proportion of missing values is so large that the missing value boxes overlap with boxes above,
-this option can be used to increase the space allocated to missing values and thus to prevent such overlap. {p_end}
-
-{phang}
-{opt samescale} specifies that for the list of variables specified each axis should have the same scale. 
-The list of variables can be a subset of {it:varlist} or the entire list: {it: samescale(_all)}. 
-This is useful, for example, if one categorical variable has been repeatedly measured over time, 
-but not all categories occur each at each time point.
 
 {phang}
 {opt label_format(string)} (rarely used) For numerical labels, display format of the numerical value. 
 By default,   {it:label_format(%6.0g)}. 
 See {it:{ help format}} for other display formats.
 This option has no effect on string labels.
+  
+{phang}
+{opt labelopt} specifies optional arguments to the labels.
+The arguments are passed  to {it:{help added_text_options}}. 
+This can be used to manipulate the text sizes of the labels, for example, {it: labelopt(size(vsmall))}.
+Text size names are explained in {it:{help textsizestyle}}. 
+By default, label size is "medium". If option {it:nolabel} is specified,  option {it:labelopt} is ignored. 
+
+
+{dlgtab:Missing values}
 
 {phang}
-{opt subspace(real)}
-(rarely needed) The plotting area consists of alternating univariate bars and connecting boxes.
-{it:space()} determines the fraction of space allocated for the univariate bars. 
-To avoid that the univariate bars and connecting boxes touch, 
-the univariate space is not used in full; a large fraction is used. We call this fraction {it:subspace}. 
-By default,  {it:subspace(0.8)} meaning that 80% of the allocated space is used for univariate bars; 
-the remainder is empty. 
+{opt missing} specifies that "missing value" is a separate category. 
+The "missing value category" is always the lowest category drawn at 
+the bottom of the graph. A vertical line is drawn to separate missing values
+from non-missing values. If there are no missing values the space below 
+the vertical line remains empty.
+If this option is not specified, observations with missing values are ignored.
+
+{phang}
+{opt missing_fraction(real)} Proportion of vertical space allocated to missing values. By default, {it:missing_fraction(0.1)}.
+When the proportion of missing values is so large that the missing value boxes overlap with boxes above,
+this option can be used to increase the space allocated to missing values and thus to prevent such overlap. {p_end}
+
 
 {dlgtab:Layout of boxes in between axes}
  
@@ -270,6 +261,29 @@ without outlining the edges of the box. This option adds the outline back in.
 {dlgtab:Other options}
 
 {phang}
+{opt space} specifies the fraction of plot allocated for 
+displaying labels / univariate bars. The default is 0.3, meaning 30% of the available
+ space is allocated to the univariate bars and the labels, and 70% for the graph elements.
+ If {it:label} is not specified, the default is 0. 
+ {it:space(1)} is the edge case where only univariate bars are shown.
+ {it:space(0)} is the edge case where only bivariate connectors are shown. 
+ 
+{phang}
+{opt samescale} specifies that for the list of variables specified each axis should have the same scale. 
+The list of variables can be a subset of {it:varlist} or the entire list: {it: samescale(_all)}. 
+This is useful, for example, if one categorical variable has been repeatedly measured over time, 
+but not all categories occur each at each time point.
+
+{phang}
+{opt subspace(real)}
+(rarely needed) The plotting area consists of alternating univariate bars and connecting boxes.
+{it:space()} determines the fraction of space allocated for the univariate bars. 
+To avoid that the univariate bars and connecting boxes touch, 
+the univariate space is not used in full; a large fraction is used. We call this fraction {it:subspace}. 
+By default,  {it:subspace(0.8)} meaning that 80% of the allocated space is used for univariate bars; 
+the remainder is empty. 
+
+{phang}
 {opt aspectratio} specifies the aspect ratio of the plot region. By default, aspect=0.7272. Changing the default 
 also affects the space between the plot region and the available area. 
 If a long variable name displays partially outside the graph area, increasing the aspect ratio is 
@@ -282,9 +296,11 @@ In particular, I have found the following options useful:
  {it: xlab(,labsize(vsmall))} makes variable names smaller. 
  {it: xlabel(, angle(30))} angles the variable names (helps to avoid overlap).
  You can add text such as {it: text(70 8 "America" "Emerging" "Asia" "Europe")}. 
-For the placement of the text, the range of the y-axis is roughly 0 to 100 
-(slightly larger when corners of boxes extend past 100; lower when missing values are present), 
-and the range of the x-axis is 1 to the number of variables.
+For the placement of the text, the range of the y-axis is 0 to 100 
+(slightly larger when corners of boxes extend past 100), 
+and the range of the x-axis is 1 to the number of variables. 
+You can explore the placement on the y-axis by specifying {it: yline(0 10 100)} 
+(lowest value, missing value separator, highest value).
 
 
 {title:Examples}
@@ -413,7 +429,7 @@ If you are using Stata 17 or earlier, specify a scheme to ensure a white backgro
 
 {title:Copyright}
 
-{pstd} Copyright 2002-2024 Matthias Schonlau {p_end}
+{pstd} Copyright 2002-2025 Matthias Schonlau {p_end}
 
 {pstd} This program is free software: you can redistribute it and/or modify it under the terms of the GNU General 
 Public License as published by the Free
