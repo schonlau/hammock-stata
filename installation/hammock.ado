@@ -1,5 +1,5 @@
 program define hammock
-*! 2.1.2  May  12, 2025: fixed bug placing the highest label, added option unibar, fixed bug related to samescale
+*! 2.1.3  June 1, 2025: recomputed xrange/yrange; stata bug resolved re `uni_color' during scatter
 	syntax varlist [if] [in], [ ///
 		Missing missing_fraction(real .1) ///
 		BARwidth(real 1) MINBARfreq(int 1) ///
@@ -8,6 +8,7 @@ program define hammock
 		noLABel labelopt(str) label_min_dist(real 3.0) label_format(str) ///
 		SAMEscale(varlist)  ///
 		noUNIbar uni_fraction(real .5) uni_colorlist(str) ///
+		SHOWaxes ///
 		ASPECTratio(real 0.72727) COLorlist(str) shape(str) outline  * ]
 
 	foreach v of local varlist {
@@ -24,14 +25,16 @@ program define hammock
 	local missing_value=5  // label_coord[.,3]=`missing_value' to indicate missing values for that category
 	local addlabel= 1- ("`label'" == "nolabel") //options that start with "no" have different syntax 
 	local adduni= 1- ("`unibar'" == "nounibar") //options that start with "no" have different syntax 
+	local showaxes = ("`showaxes'" == "showaxes") 
 	local same = "`samescale'" !=""
 	local outline = "`outline'" != "" 
 
 	if ("`shape'"=="") local shape="rectangle"
 
-	local varnamewidth=`space' /*=percentage of space given to text as opposed to the graph*/
+	//local varnamewidth=`space' 
+	/*=percentage of space given to text as opposed to the graph*/
 	if (`addlabel'!=0 | `adduni') & `space'==float(0) {
-		local varnamewidth=0.3   // if addlabel, change the default space to 0.3
+		local space=0.3   // if addlabel, change the default space to 0.3
 	}								   
 																		
 	parse_hivalues, hivalues("`hivalues'") hiprefix("") 
@@ -171,9 +174,9 @@ program define hammock
 	*** preparation for graph 
 	
 	* make room for labels in between rectangles
-	qui gen `graphxlag'= `graphx'+ (1-`varnamewidth'/2)
-	if (`varnamewidth'>0)	{ 
-		qui replace `graphx'= `graphx' + `varnamewidth'/2 
+	qui gen `graphxlag'= `graphx'+ (1-`space'/2)
+	if (`space'>0)	{ 
+		qui replace `graphx'= `graphx' + `space'/2 
 	}
 
 	* compute `width' :  refers to a percentage of `range'
@@ -182,10 +185,6 @@ program define hammock
 	// Barwidth is a multiplicative increase from 0.2
 	qui gen `width' =_freq / `N' * `range' * 0.2* `barwidth' 
 	
-	*xrange
-	local xrange= `k'-1   /* number of x variables-1==xrange */
-	
-
 	//reshape: previously each obs represented unique (box,color) combination
 	//now each obs represents a unique box (with multiple colors). 
 	// color variables contain the width of the color and are missing otherwise
@@ -207,8 +206,18 @@ program define hammock
 	qui gen `ylo_uni'=. 
 	qui gen `x_uni'=.
 	qui gen `color_uni'=.
-	local uni_width= `subspace'  *`varnamewidth'
+	local uni_width= `subspace'  *`space'
 
+	*xrange
+    if (`adduni') { 
+		local xrange= (`k'-1)+`uni_width'   // range expanded to accomodate left and right space of uni_bar
+	}
+	else {
+		local xrange= `k'-1   // number of x variables-1==xrange 
+		// when using shape(rectangle), the rectangle can protrude lower than 1 and higher than `k' and be a little off.
+		// when plotting labels but not unibar, a long label does *not* distort xrange; longer labels are reach beyond axes
+	}
+	
 	if (`addlabel'==1) {
 		compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
 			label_text("`label_text'") labelopt(`"`labelopt'"')
@@ -248,12 +257,16 @@ program define hammock
 		local ylabmax=r(ylabmax)
 		local ylabmin=r(ylabmin)
 	}
-	local yrange=`ylabmax'-`ylabmin'
+	
+	calc_yrange, ylabmax(`ylabmax') ylabmin(`ylabmin') uni_yhi("`yhi_uni'") uni_ylo("`ylo_uni'")
+	local yrange=r(yrange)
+	local ylabmin=r(ylabmin)
+	local ylabmax=r(ylabmax)
 
-// for parallelogram
-//di "ystart yend xstart xend"
-//list `ystart' `yend' `xstart' `xend'
-//di "ystart=" `ystart' " yend(`yend')  xstart(`xstart') xend(`xend') ylow(`ylow') yhigh(`yhigh') ylaglow(`ylaglow') ylaghigh(`ylaghigh') xlow(`xlow') xhigh(`xhigh') xlaglow(`xlaglow') xlaghigh(`xlaghigh')  "
+	// for debugging; print variables
+	//list_connectors,  xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') ///
+	//		width(`width') uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') ///
+	//		uni_color(`color_uni') 
 
 
 	if (`space'!=float(1.0)) {
@@ -267,7 +280,8 @@ program define hammock
 			 shape("`shape'") outline(`outline') ///
 			 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"') ///
 			 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
-			 uni_width(`uni_width') uni_colorlist(`uni_colorlist')
+			 uni_width(`uni_width') uni_colorlist(`uni_colorlist') ///
+			 showaxes(`showaxes')
 		// matrix `label_coord' is still around but not needed in GraphBoxColor 
 	}
 	else {   // only plot unibars; don't compute connecting boxes
@@ -294,18 +308,19 @@ program plot_unibars
 		uni_ylo(str) uni_yhi(str)  uni_x(str) uni_color(str) uni_width(real) uni_colorlist(str) ///
 		[  colorlist(str) addlabeltext(str) yline(str)  options(str)  ]
 	
+	// I think STATA bug now resolved as of Stata 19?
 	//@@ There is a STATA bug when using colorvar() with temporary variables 
 	//as a workaround I'm defining a permanent variable until Stata fixes this issue
-	qui gen uni_color_var=`uni_color'
+	//qui gen uni_color_var=`uni_color'
 
 	// changes relative to other scatter: `addplot' contains the boxes and is removed; option `addlabeltext' is then moved elsewhere
 	twoway scatter std_y `graphx', ///
 		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
 		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
 		plotregion(style(none) m(zero)) ///
-		aspect(`aspectratio') `options'  ///
+		aspect(`aspectratio') `options' ///
 		|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
-			colorvar(uni_color_var) colordiscrete colorlist(`uni_colorlist') clegend(off) ///
+			colorvar(`uni_color') colordiscrete colorlist(`uni_colorlist') clegend(off) ///
 			`addlabeltext' 
 end 
 /**********************************************************************************/
@@ -1073,6 +1088,7 @@ end
 * uni_width		 : width  / space of the univariate area 
 * colorlist		 : list of colors to be used
 * outline		 : 1/0: whether or not boxes should have an outline (using lcolor)
+* showaxes	     : 1/0. Whether or not to add a frame to the plot to see how it is plotted
 *
 * Strategy: 
 * For each box, 3 variables (yhigh, ylow, and x) are created. 
@@ -1091,6 +1107,7 @@ program define GraphBoxColor
 		ylabmin(real) ylabmax(real) xlab_num(str) shape(str) outline(int) ///
 		aspectratio(real) ar_x(real) xrange(real) yrange(real) ///
 		uni_ylo(str) uni_yhi(str)  uni_x(str) uni_color(str) uni_width(real) uni_colorlist(str) ///
+		showaxes(int) ///
 		[  colorlist(str) addlabeltext(str) yline(str)  options(str)  ]
 
 	tempvar w increment
@@ -1119,7 +1136,7 @@ program define GraphBoxColor
 		init_rectangle, xstart(`xstart') xend(`xend') ystart(`ystart') yend(`yend') w(`w') ///
 			o_ylow(`o_ylow') o_yhigh(`o_yhigh') o_ylaglow(`o_ylaglow') o_ylaghigh(`o_ylaghigh') ///
 			o_xlow(`o_xlow') o_xhigh(`o_xhigh') o_xlaglow(`o_xlaglow') o_xlaghigh(`o_xlaghigh') ///
-			xrange(`xrange') ar_x(`ar_x') ylabmin(`ylabmin') ylabmax(`ylabmax')
+			xrange(`xrange') ar_x(`ar_x') yrange(`yrange')
 	}
 
 	local N=_N
@@ -1217,29 +1234,35 @@ program define GraphBoxColor
 	// *The twoway command cannot be moved up to the caller program because the caller program does not have 
 	// 	access to the many (e.g.200) variables used in `addplot'
 
-	/* 
-	//for debugging: This helps seeing the frame in the plot area on which aspectratio is built.
-	twoway scatter std_y `graphx', ///
-		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',) ylab(,valuelabel)  `yline'     ///
-		legend(off) ytitle("") xtitle("") msymbol(none)  ///
-		plotregion(lstyle(dashed) m(zero) ) yscale(on)  ///
-		aspect(`aspectratio') `options'  ||  `addplot' `addlabeltext'
-	*/
-	
-	//@@ There is a STATA bug when using colorvar() with temporary variables 
-	//as a workaround I'm defining a permanent variable until Stata fixes this issue
-	qui gen uni_color_var=`uni_color'
-
-	twoway scatter std_y `graphx', ///
-		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
-		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
-		plotregion(style(none) m(zero)) ///
-		aspect(`aspectratio') `options' ///
-		||  `addplot'  `addlabeltext'   ///
-		|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
-			colorvar(uni_color_var) colordiscrete colorlist(`uni_colorlist') clegend(off) 
  
-	cap drop uni_color_var
+ 	//@@ There is a STATA bug when using colorvar() with temporary variables 
+	//as a workaround I'm defining a permanent variable until Stata fixes this issue
+	// this issue appears now to be resolved; as of Stata19?? 
+	//	qui gen uni_color_var=`uni_color'
+ 
+
+
+	//for debugging (important): This helps seeing the frame in the plot area on which aspectratio is built.
+	if `showaxes' {
+		local ll=1+`uni_width'/2  // unibars are not plotted from .85 to 1.15, but instead a smaller fraction 
+		twoway scatter std_y `graphx', ///
+			ylab(`ylabmin' 10(10)90 `ylabmax')  xlab(`xlab_num' `ll',) ylab(,valuelabel)  `yline'     ///
+			legend(off) ytitle("") xtitle("") msymbol(none)  ///
+			plotregion( m(zero) ) yscale(on)  ///
+			aspect(`aspectratio') `options'  ||  `addplot' `addlabeltext' ///
+			|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
+				colorvar(`uni_color') colordiscrete colorlist(`uni_colorlist') clegend(off) 
+	} 
+	else {
+		twoway scatter std_y `graphx', ///
+			ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
+			legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
+			plotregion(style(none) m(zero)) ///
+			aspect(`aspectratio') `options' ///
+			||  `addplot'  `addlabeltext'  ///
+			|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
+				colorvar(`uni_color') colordiscrete colorlist(`uni_colorlist') clegend(off) 
+	}
 
 	// These options below produce a graph without any margins except for the x-labels at the bottom
 	// scatter y x,plotr(m(zero)) graphr(m(zero)) ytitle("") xtitle("") yscale(off) xscale(noline) 
@@ -1376,7 +1399,7 @@ end
 //			reals: xrange, ylabmin ylabmax, ar_x  (needed to compute alpha's)
 // output: 	o_ylow o_yhigh o_ylaglow o_ylaghigh 
 //			o_xlow o_xhigh o_xlaglow o_xlaghigh 
-	// Notation as used in the paper's appendix : 
+	// Notation as used in the JCGS paper's online appendix : 
 	// B' = o_ylow , o_xlow
 	// A'=  o_yhigh, o_xhigh
 	// M= xstart, ystart 
@@ -1389,7 +1412,7 @@ program init_rectangle
 	syntax, xstart(str) xend(str) ystart(str) yend(str) w(str) ///
 		o_ylow(str) o_yhigh(str) o_ylaglow(str) o_ylaghigh(str) ///
 		o_xlow(str) o_xhigh(str) o_xlaglow(str) o_xlaghigh(str) ///
-		xrange(real) ylabmin(real) ylabmax(real) ar_x(real)
+		xrange(real)  ar_x(real) yrange(real)
 			
 	// y  (~0..~100) has a different scale than x (1..#xvar-1)
 	// When plotting, use the variables on their usual scale
@@ -1403,7 +1426,8 @@ program init_rectangle
 	qui gen `sinalpha'=.   // sin(alpha)
 	// deltax and deltay are not the physical scatter plot distance, but const multiplier cancels in ratio
 	// need to calculate the y max and min difference for standardize delta y
-	local ymaxmin_diff= (`ylabmax'-`ylabmin')
+	//local ymaxmin_diff= (`ylabmax'-`ylabmin')  // before May 2025
+	local ymaxmin_diff= `yrange'   // changed May 2025; yrange can be larger than ylabmax-ylabmin bec of higher unibars
 	qui gen `deltax'= (`xend'-`xstart')/`xrange' *`ar_x' //same calc as in compute_vertical_width
 	qui gen `deltay'= (`yend'-`ystart')/`ymaxmin_diff'   			 	//same calc as in compute_vertical_width
 
@@ -1802,6 +1826,54 @@ program decide_label_too_close
 		}
 	}	
 end 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// purpose:  list connectors between axes. For debugging only.
+program list_connectors
+	version 17.0
+	
+	syntax, xstart(str) xend(str) ystart(str) yend(str) ///
+			width(str) ///
+			uni_ylo(str) uni_yhi(str) uni_x(str) uni_color(str)
+	
+	label var `xstart' xstart
+	label var `xend'  xend
+	label var `ystart' ystart
+	label var `yend' yend
+	label var `width' width
+	
+	label var `uni_ylo' uni_ylo 
+	label var `uni_yhi' uni_yhi
+	label var `uni_x'   uni_x 
+	label var `uni_color' uni_color
+	
+	foreach v of varlist _all {
+		display "`v': `:var label `v''"
+	}
+	list
+end
+/////////////////////////////////////////////////////////////////////////////////////////////////////////
+// purpose:  calculate yrange, and adjust ylabmax/ylabmin if needed. 
+//		This is important to get the rectangles right later on.
+// strategy: use temporary variable to find out what the largest value is from the unibars or from  ylabmax.
+program calc_yrange ,  rclass
+    syntax ,  ylabmax(real) ylabmin(real) uni_yhi(str) uni_ylo(str)
+	// note: yrange covers the range of the bivariate connectors; it does not adjust for univariate bars going higher or lower.
+	qui summarize `uni_yhi'
+	local temphi= r(max)
+	qui summarize `uni_ylo'
+	local templo= r(min)
+	
+	//local temphi=max(`ylabmax',`temphi')
+	//local templo=min(`ylabmin',`templo')
+	//local yrange=`temphi'-`templo'
+	local ylabmax=max(`ylabmax',`temphi')
+	local ylabmin=min(`ylabmin',`templo')
+	local yrange=`ylabmax' - `ylabmin'
+	
+	return local yrange `yrange'
+	return local ylabmax `ylabmax'
+	return local ylabmin `ylabmin'
+end
 ///////////////////////////////////////////////////////////////////////////////////////////////
 //Version 
 //*! 1.0.0   Feb 21, 2003 Matthias Schonlau 
@@ -1845,3 +1917,4 @@ end
 //*! 2.1.0 	 Apr 18, 2025: redesigned/fixed placement of lowest, highest, and missing bars
 //*! 2.1.1 	 May  2, 2025: axes label with variable *labels*; options label as default; outline off by default
 //*! 2.1.2 	 May 12, 2025: fixed bug placing the highest label, added option unibar,fixed bug related to samescale
+//*! 2.1.3   June 1, 2025: recomputed xrange/yrange; stata bug resolved re `uni_color' during scatter
