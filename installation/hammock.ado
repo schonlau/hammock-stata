@@ -1,10 +1,10 @@
 program define hammock
-*! 2.1.3  June 1, 2025: recomputed xrange/yrange; stata bug resolved re `uni_color' during scatter
+*! 2.1.4   June 5, 2025: fixed bugs: related to missings/string label format; related to space=0; added label_eps
 	syntax varlist [if] [in], [ ///
 		Missing missing_fraction(real .1) ///
 		BARwidth(real 1) MINBARfreq(int 1) ///
 		hivar(str) HIVALues(string) /// 
-		SPAce(real 0.0)  subspace(real 0.8) ///
+		SPAce(real -1.0)  subspace(real 0.8) ///
 		noLABel labelopt(str) label_min_dist(real 3.0) label_format(str) ///
 		SAMEscale(varlist)  ///
 		noUNIbar uni_fraction(real .5) uni_colorlist(str) ///
@@ -31,11 +31,13 @@ program define hammock
 
 	if ("`shape'"=="") local shape="rectangle"
 
-	//local varnamewidth=`space' 
-	/*=percentage of space given to text as opposed to the graph*/
-	if (`addlabel'!=0 | `adduni') & `space'==float(0) {
-		local space=0.3   // if addlabel, change the default space to 0.3
-	}								   
+	// percentage of space given to univariate bars/text as opposed to the graph
+	if (`addlabel' | `adduni') & `space'==float(-1) {
+		local space=0.3   // if space needed, default space 
+	}
+	else if `space'==float(-1) {
+		local space=0  // if space not needed
+	}
 																		
 	parse_hivalues, hivalues("`hivalues'") hiprefix("") 
 	local hiprefix = r(hiprefix)  // if missing, this assigns hiprefix="."
@@ -117,15 +119,18 @@ program define hammock
 	// Note this computes the midpoints (between 0 and 100), the upper/lower points may be a little wider
 	// Missing values after standardization (std_y) equal 0
 	local std_y="std_y" // stub name of variables created
-	local eps= 3  // adjust coordinates away from 0, 10, 100 by eps so that labels and bivariate bars print more nicely.
+	local eps= 0  // adjust coordinates away from 0, 10, 100 by eps so that labels and bivariate bars print more nicely.
+				  // not used for unibars cause for numerical vars may have values between 10 and 10+eps
+				  // not used for bivariate bars: (or else bars don't connect to unibars )
+				  // not used for labels : separate label_eps for labels
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
 	// changes `label_coord'
 	transform_variable_range `varlist', same(`same') addlabel(`addlabel') adduni(`adduni') std_y("`std_y'") ///
 		missing_fraction(`missing_fraction') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
-	// in an ideal word, the adjustment would not be constant `eps', but depend on the size of the box
 	if (`addlabel' | `adduni') adjust_mat_label_coord,  eps(`eps') mat_label_coord("`label_coord'") ///
 			miss(`missing') missing_fraction(`missing_fraction')	
 	adjust_std_y  `std_y'* , eps(`eps')  miss(`missing') missing_fraction(`missing_fraction')	
+	
 	if (`addlabel' | `adduni')  decide_label_too_close, mat_label_coord("`label_coord'") min_distance(`label_min_dist') ///
 		missing_value(`missing_value') 
 
@@ -220,6 +225,7 @@ program define hammock
 	
 	if (`addlabel'==1) {
 		compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
+			missing_fraction(`missing_fraction') ///
 			label_text("`label_text'") labelopt(`"`labelopt'"')
 		local addlabeltext=r(addlabeltext) 
 	}
@@ -278,7 +284,7 @@ program define hammock
 			aspectratio(`aspectratio') ar_x(`ar_x') xrange(`xrange') yrange(`yrange') ///
 			 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist(`"`colorlist'"') ///
 			 shape("`shape'") outline(`outline') ///
-			 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"') ///
+			 options(`"`options'"') addlabeltext(`"`addlabeltext'"')  ///
 			 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
 			 uni_width(`uni_width') uni_colorlist(`uni_colorlist') ///
 			 showaxes(`showaxes')
@@ -290,7 +296,7 @@ program define hammock
 			aspectratio(`aspectratio') ///
 			 xlab_num("`xlab_num'")  graphx("`graphx'") colorlist(`"`colorlist'"') ///
 			  outline(`outline') ///
-			 options(`"`options'"') addlabeltext(`"`addlabeltext'"') yline(`"`yline'"') ///
+			 options(`"`options'"') addlabeltext(`"`addlabeltext'"')  ///
 			 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
 			 uni_width(`uni_width') uni_colorlist(`uni_colorlist')
 	}
@@ -306,16 +312,11 @@ program plot_unibars
 		ylabmin(real) ylabmax(real) xlab_num(str)  outline(int) ///
 		aspectratio(real)  ///
 		uni_ylo(str) uni_yhi(str)  uni_x(str) uni_color(str) uni_width(real) uni_colorlist(str) ///
-		[  colorlist(str) addlabeltext(str) yline(str)  options(str)  ]
+		[  colorlist(str) addlabeltext(str)  options(str)  ]
 	
-	// I think STATA bug now resolved as of Stata 19?
-	//@@ There is a STATA bug when using colorvar() with temporary variables 
-	//as a workaround I'm defining a permanent variable until Stata fixes this issue
-	//qui gen uni_color_var=`uni_color'
-
 	// changes relative to other scatter: `addplot' contains the boxes and is removed; option `addlabeltext' is then moved elsewhere
 	twoway scatter std_y `graphx', ///
-		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
+		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)      ///
 		legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
 		plotregion(style(none) m(zero)) ///
 		aspect(`aspectratio') `options' ///
@@ -394,8 +395,9 @@ end
 // output: addlabeltext:   text("ypos1 xpos1 "text1"  ypos2 xpos2 "text2" [...])
 program  compute_addlabeltext, rclass
 	version 16
-	syntax , mat_label_coord(str) missing(str) label_text(str) [ labelopt(str) ]
+	syntax , mat_label_coord(str) missing(str) missing_fraction(real) label_text(str) [ labelopt(str) ]
 
+	local label_eps=2 // moving labels away from 0, 10,100
 	* the labels are overwriting the plot. Plot before the graphboxes 
 	local n_labels = rowsof(`mat_label_coord')
 	local addlabeltext="text("   // no space between "text" and "("
@@ -405,8 +407,22 @@ program  compute_addlabeltext, rclass
 			// 3rd col==0 avoids plotting labels where labels were too close
 			// text to plot ="``pos''"      y = `mat_label_coord'[`j',1]        x= `mat_label_coord'[`j',2]  
 			// the matrix needs to be evaluated as  `=matrixelem'  ; otherwise just the name of the matrix elem appears
+			
+			local yy= `=`mat_label_coord'[`j',1]'
+			if (`yy')==float(100) {
+				local yy= `yy' - `label_eps'  // move down
+			}
+			else if (`yy')==float(0) {
+				local yy= `yy' +`label_eps'
+			}
+			else if (`yy')==float(`missing_fraction'*100) {
+				local yy= `yy' +`label_eps'    //by default, this is 10 
+			}
 			local addlabeltext= ///
-			`"`addlabeltext'`=`mat_label_coord'[`j',1]' `=`mat_label_coord'[`j',2]' "`=_frval(connectors,`label_text',`j')'"  "'
+			`"`addlabeltext'`yy' `=`mat_label_coord'[`j',2]' "`=_frval(connectors,`label_text',`j')'"  "'
+			
+			//local addlabeltext= ///
+			//`"`addlabeltext'`=`mat_label_coord'[`j',1]' `=`mat_label_coord'[`j',2]' "`=_frval(connectors,`label_text',`j')'"  "'
 		}
 	}
 
@@ -651,7 +667,7 @@ end
 *    matrix has 3 cols: 
 *    1 variable values/levels (actual value, not yet y-coordinate)  1..(# labels for corresponding variable)
 *    2 variable index in `varlist'  (x-coordinate) 1...(#variables) 
-*    3  takes values "." (start of a new variable, i.e. the first label of a new variable) and "5"  (missing_value) 
+*    3 takes one of two values: "."(start of a new variable,i.e. the first label of a new variable); "5"(=`missing_value') 
 program define list_labels, rclass
 	version 18
 	syntax varlist , label_text(str) missing(int) missing_value(int) [ label_format(string) ]
@@ -707,7 +723,12 @@ program define list_labels, rclass
 				/* no value label present */
 				local format_w=string(`w',"%6.0g") 
 				if "`label_format'"!="" {
+					//non-numerical formats such as 10%s  give empty values "" 
 					local format_w=string(`w',"`label_format'")
+				}
+				if ("`format_w'")=="" {
+					// if label format was not valid/ string format, restore previous assignment.
+					local format_w=string(`w',"%6.0g")
 				}
 				if ("`format_w'"==".")  {
 					local format_w="missing"
@@ -920,7 +941,7 @@ program define gen_colorgroup_num
 	}
 	qui gen colorgroup=`pen'
 	foreach v of numlist `hivalues' {
-		local pen=mod(`pen',8)+1  //increment pen by 1 (modulo 8)
+		local pen=`pen'+1  //increment pen by 1 
 		qui replace colorgroup=`pen' if `hivar'==`v' 
 		if ("`v'"==".") {
 			qui replace colorgroup=`pen' if  `hivar'==.
@@ -938,16 +959,15 @@ program define gen_colorgroup_str
 	qui gen colorgroup=`pen'
 	foreach v in `hivalues' {
 		local i=1
-		local pen=mod(`pen',8)+1
+		local pen=`pen'+1
 		while (`i'<=_N) {
 			qui replace colorgroup=`pen' in `i' if  ustrregexm(`hivar'[`i'],"`v'")    // `hivar'==`v' 
 			local i=`i' + 1
 		}
-	}
-    *list  `hivar' colorgroup
+	} 
 end
 /**********************************************************************************/
-* generate the colorgroup variable when the prefix ("<" or ">") is present
+* generate the colorgroup variable when the prefix ("<", ">",...) is present
 * one highlighting color: 2
 * all values not mentioned in hivalues get color=1
 * syntax enforces that only a single hivalue is allowed
@@ -1108,7 +1128,7 @@ program define GraphBoxColor
 		aspectratio(real) ar_x(real) xrange(real) yrange(real) ///
 		uni_ylo(str) uni_yhi(str)  uni_x(str) uni_color(str) uni_width(real) uni_colorlist(str) ///
 		showaxes(int) ///
-		[  colorlist(str) addlabeltext(str) yline(str)  options(str)  ]
+		[  colorlist(str) addlabeltext(str) options(str)  ]
 
 	tempvar w increment
 	qui egen `w'= rsum(`width'*)  // total width of a multi-color box
@@ -1234,19 +1254,11 @@ program define GraphBoxColor
 	// *The twoway command cannot be moved up to the caller program because the caller program does not have 
 	// 	access to the many (e.g.200) variables used in `addplot'
 
- 
- 	//@@ There is a STATA bug when using colorvar() with temporary variables 
-	//as a workaround I'm defining a permanent variable until Stata fixes this issue
-	// this issue appears now to be resolved; as of Stata19?? 
-	//	qui gen uni_color_var=`uni_color'
- 
-
-
 	//for debugging (important): This helps seeing the frame in the plot area on which aspectratio is built.
 	if `showaxes' {
 		local ll=1+`uni_width'/2  // unibars are not plotted from .85 to 1.15, but instead a smaller fraction 
 		twoway scatter std_y `graphx', ///
-			ylab(`ylabmin' 10(10)90 `ylabmax')  xlab(`xlab_num' `ll',) ylab(,valuelabel)  `yline'     ///
+			ylab(`ylabmin' 10(10)90 `ylabmax')  xlab(`xlab_num' `ll',) ylab(,valuelabel) ///
 			legend(off) ytitle("") xtitle("") msymbol(none)  ///
 			plotregion( m(zero) ) yscale(on)  ///
 			aspect(`aspectratio') `options'  ||  `addplot' `addlabeltext' ///
@@ -1255,10 +1267,11 @@ program define GraphBoxColor
 	} 
 	else {
 		twoway scatter std_y `graphx', ///
-			ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)  `yline'     ///
+			ylab(`ylabmin' `ylabmax')  xlab(`xlab_num', valuelabel noticks nogrid) ///
+			ylab(,valuelabel noticks nogrid)  ///
 			legend(off) ytitle("") xtitle("") yscale(off) xscale(noline) msymbol(none)  ///
 			plotregion(style(none) m(zero)) ///
-			aspect(`aspectratio') `options' ///
+			aspect(`aspectratio') `options'  ///
 			||  `addplot'  `addlabeltext'  ///
 			|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
 				colorvar(`uni_color') colordiscrete colorlist(`uni_colorlist') clegend(off) 
@@ -1784,9 +1797,9 @@ program adjust_std_y
 	
 	local ten= `missing_fraction'*100  // by default this will be 10 (with missings) or 0 (without missings)
 	foreach var of varlist `varlist' {
-		qui replace `var'=`eps' if  `var'==0
-		qui replace `var'=100-`eps' if `var'==100
-		qui replace `var'=`ten'+`eps' if `var'==`ten'
+		qui replace `var'=`eps' if  `var'==float(0)
+		qui replace `var'=100-`eps' if `var'==float(100)
+		qui replace `var'=`ten'+`eps' if `var'==float(`ten')
 	}
 end
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1918,3 +1931,4 @@ end
 //*! 2.1.1 	 May  2, 2025: axes label with variable *labels*; options label as default; outline off by default
 //*! 2.1.2 	 May 12, 2025: fixed bug placing the highest label, added option unibar,fixed bug related to samescale
 //*! 2.1.3   June 1, 2025: recomputed xrange/yrange; stata bug resolved re `uni_color' during scatter
+//*! 2.1.4   June 4, 2025: fixed bugs: related to missings/string label format; related to space=0; added label_eps

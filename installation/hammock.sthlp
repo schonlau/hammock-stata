@@ -132,7 +132,13 @@ using the same color  (the second color in {it: colorlist}).
 {pmore}
 {it:hivalues} may specify strings or subsets of strings when {it:hivariable} is a string variable. 
 For example, for the Shakespeare data set, {it:hivar(play_name)} {it:hivalues(Richard Mac)} 
-highlights all plays that contain "Richard" in one color and those that contain "Mac" in another color. 
+highlights all plays that contain "Richard" in one color and those that contain "Mac" in another color.
+Note 1: It is not possible to higlight a single string that contains a space like "Tedej Pogacar". 
+The program will treat this as two strings. Just highlight "Pogacar" instead.  
+Note 2: It is possible to highlight strings of a string variable as long as the string variable does not appear in the 
+hammock plot.  If you want to show the variable in the plot, 
+use {it:encode} to encode the variable as numerical with a string label.
+
 Because variables in {it:varlist} must be numerical (with optional string labels), 
 this is only relevant if the {it:hivar} is NOT part of {it:varlist}.
 
@@ -174,7 +180,7 @@ or to improve layout according to user taste.
 requests value {it:{help labels}}  
  not to be displayed on the graph. For variables for which value labels are not defined,  
 the values themselves are displayed. This makes it easier to identify which category
-is displayed where. 
+is displayed where.
 
 {phang}
 {opt label_min_dist} specifies the minimum distance between two labels on the same axis.
