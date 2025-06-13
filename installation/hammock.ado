@@ -1,5 +1,5 @@
 program define hammock
-*! 2.1.4   June 5, 2025: fixed bugs: related to missings/string label format; related to space=0; added label_eps
+*! 2.1.5   June 9, 2025: moved connectors of uppermost and lowermost boxes to middle of box
 	syntax varlist [if] [in], [ ///
 		Missing missing_fraction(real .1) ///
 		BARwidth(real 1) MINBARfreq(int 1) ///
@@ -30,6 +30,7 @@ program define hammock
 	local outline = "`outline'" != "" 
 
 	if ("`shape'"=="") local shape="rectangle"
+	if ("`shape'"=="par") local shape="parallelogram"  // par is an abbreviation
 
 	// percentage of space given to univariate bars/text as opposed to the graph
 	if (`addlabel' | `adduni') & `space'==float(-1) {
@@ -124,7 +125,7 @@ program define hammock
 				  // not used for bivariate bars: (or else bars don't connect to unibars )
 				  // not used for labels : separate label_eps for labels
 	if `same' local addtmp = `"samescale(`samescale')"'  // if `same' specify this option
-	// changes `label_coord'
+	// subroutine changes `label_coord' 
 	transform_variable_range `varlist', same(`same') addlabel(`addlabel') adduni(`adduni') std_y("`std_y'") ///
 		missing_fraction(`missing_fraction') mat_label_coord("`label_coord'") miss(`missing') `addtmp'
 	if (`addlabel' | `adduni') adjust_mat_label_coord,  eps(`eps') mat_label_coord("`label_coord'") ///
@@ -158,6 +159,7 @@ program define hammock
 
 	* variables yvar need be listed std_y1 std_y2 std_y3 etc.   
 	// "std_y" is a stub only; cannot replace by a tempvariable
+	// at this point the variables in varlist are not going into long form and are lost
 	qui reshape long std_y, i(`id') 
 	keep std_y `id' _j colorgroup 
 
@@ -172,17 +174,10 @@ program define hammock
 	* graphx is important for unique identification 
 	* contract creates _freq variable
 	contract std_y `std_ylag' `graphx' colorgroup
-	* scatter std_y  `graphx'
-
 	qui replace _freq=max(`minbarfreq',_freq)
 
+
 	*** preparation for graph 
-	
-	* make room for labels in between rectangles
-	qui gen `graphxlag'= `graphx'+ (1-`space'/2)
-	if (`space'>0)	{ 
-		qui replace `graphx'= `graphx' + `space'/2 
-	}
 
 	* compute `width' :  refers to a percentage of `range'
 	summarize `std_ylag', meanonly 
@@ -193,8 +188,17 @@ program define hammock
 	//reshape: previously each obs represented unique (box,color) combination
 	//now each obs represents a unique box (with multiple colors). 
 	// color variables contain the width of the color and are missing otherwise
-	keep  `width' colorgroup `graphx' `graphxlag' std_y `std_ylag' 
-	qui reshape wide `width', j(colorgroup) i(`graphx' `graphxlag' std_y `std_ylag')
+	keep  `width' colorgroup `graphx' std_y `std_ylag' 
+	qui reshape wide `width', j(colorgroup) i(`graphx'  std_y `std_ylag')
+
+	tempvar x xlag
+	qui gen `x'=`graphx'   // keep to identify x-variables for placement adjustment
+	qui  gen `xlag'=`graphx'+ 1
+	* make room for labels in between rectangles
+	qui gen `graphxlag'= `graphx'+ (1-`space'/2)
+	if (`space'>0)	{ 
+		qui replace `graphx'= `graphx' + `space'/2 
+	}
 	
 	// in trivial cases there may be fewer than 4 boxes. 
 	// 4 obs are needed for the rectangle vars
@@ -222,26 +226,35 @@ program define hammock
 		// when using shape(rectangle), the rectangle can protrude lower than 1 and higher than `k' and be a little off.
 		// when plotting labels but not unibar, a long label does *not* distort xrange; longer labels are reach beyond axes
 	}
+
+	/*
+	list_connectors,  xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') ///
+			width(`width') uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') ///
+			uni_color(`color_uni') 
+	*/
 	
-	if (`addlabel'==1) {
-		compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
-			missing_fraction(`missing_fraction') ///
-			label_text("`label_text'") labelopt(`"`labelopt'"')
-		local addlabeltext=r(addlabeltext) 
-	}
-	else  local addlabeltext=""
 	if (`adduni') {
 		add_unibars `yhi_uni' `ylo_uni' `x_uni' `color_uni', mat_label_coord(`label_coord') ///
 			mat_uni(`uni_matrix') uni_fraction(`uni_fraction') ncolors(`ncolors') missing_fraction(`missing_fraction')
 		local n_labels = rowsof(`label_coord')  //number of rows for one color
 		adjust_bar_placement `yhi_uni' `ylo_uni', n_lab(`n_labels') missing_fraction(`missing_fraction') ///
-			label_coord("`label_coord'")  m_val(`missing_value') 
+			label_coord("`label_coord'")  m_val(`missing_value')  ystart(std_y) yend(`std_ylag') x(`x') xlag(`xlag')
+		if (`addlabel'==1) {
+			// after adjust_bar_placement 'cause label_coord used below 
+			compute_addlabeltext ,  mat_label_coord(`label_coord') missing("`missing'") ///
+				missing_fraction(`missing_fraction') ///
+				label_text("`label_text'") labelopt(`"`labelopt'"')
+			local addlabeltext=r(addlabeltext) 
+		}
+		else  local addlabeltext=""			
+						
 //local tmpmax= min(_N,20)
 //di "after adduni: uni_ylo uni_yhi uni_x uni_color" 
 //list  `ylo_uni' `yhi_uni' `x_uni' `color_uni' in 1/`tmpmax' 
 //frame connectors: list _all
 //matrix list `label_coord'
 	}
+	
 
 	// compute ylabmin (midpoint-1/2 width) and ylabmax (midpoint+1/2 width)
 	// If y_std contains missing values they are coded 0, just like any other minimum value
@@ -581,16 +594,17 @@ program  add_unibars_compare, rclass
 end 
 */
 /**********************************************************************************/
-//If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
+//If any bars exceed [lower,upper]=[0,100], adjust bar down or up, and change label_coord 
 //input:  	
 //	n_labels: number of labels= number of boxes for any one color
-// missing_fraction:   0.1 by default
-// m_val :  missing_value, set to 5
+//  missing_fraction:   0.1 by default
+//  m_val :  missing_value, set to 5
 //on output: 
-//	yhi_uni, ylo_uni are changed for some bars 
+//	yhi_uni, ylo_uni, label_coord are changed for some bars 
 program adjust_bar_placement 
 	version 18
-	syntax varlist (min=2 max=2), n_lab(int) missing_fraction(real) label_coord(str) m_val(int)
+	syntax varlist (min=2 max=2), n_lab(int) missing_fraction(real) label_coord(str) ///
+		m_val(int)  ystart(str) yend(str) x(str) xlag(str)
 
 	tokenize `varlist'
 	local yhi_uni `1'
@@ -598,11 +612,9 @@ program adjust_bar_placement
 
 	local min_nonmissing= `missing_fraction'*100
 
-	//If any bars exceed [lower,upper]=[~0,~100], adjust bar down or up 
-	//Note: previously I had eps=3, but eps is now set in adjust_label_coord
-	local eps=0 
-	local upper=100+`eps' // upper limit a bit above 100, so label is not on border
-	local lower=-`eps'
+	//If any bars exceed [lower,upper]=[0,100], adjust bar down or up 
+	local upper=100
+	local lower=0
 	tempvar diff index i_within_color index2 sortorder diff2
 	qui gen `diff'= `yhi_uni'-`ylo_uni'
 
@@ -625,9 +637,16 @@ program adjust_bar_placement
 			// for each group of boxes
 			sum `yhi_uni' if `index2' & `i_within_color'==`i' 
 			local i_max=r(max)
-			local diff = `i_max'-`upper'  //diff= max value - upper limit
-			replace `ylo_uni'= `ylo_uni'-`diff' if `index2' & `i_within_color'==`i' //move all values down
-			replace `yhi_uni'= `yhi_uni'-`diff' if `index2' & `i_within_color'==`i'
+			local d = `i_max'-`upper'  //d= max value - upper limit
+			replace `ylo_uni'= `ylo_uni'-`d' if `index2' & `i_within_color'==`i' //move all values down
+			replace `yhi_uni'= `yhi_uni'-`d' if `index2' & `i_within_color'==`i'
+			//di as red "i=`i'; d=`d' ; label_coord[i,1]=" `label_coord'[`i',1]
+			if (`d'!=.) {
+				// label_coord:  reduce corresponding entry in `label_coord' by `diff'. Label coord only has one entry per color
+				replace `ystart'=`ystart'-`d' if  `ystart'==float(`label_coord'[`i',1]) & `x'==float(`label_coord'[`i',2])  // connectors x/y combination  
+				replace `yend'=`yend'-`d'     if  `yend'  ==float(`label_coord'[`i',1]) & `xlag'==float(`label_coord'[`i',2])  // connectors
+				matrix `label_coord'[`i',1]= `label_coord'[`i',1] -`d'    // labels and unibars
+			}
 		}
 	}
 	// if missing, for lower, I need to distinguish between missing values and non-missing values
@@ -648,14 +667,26 @@ program adjust_bar_placement
 			sum `ylo_uni' if `index2' & `i_within_color'==`i' 
 			local i_min=r(min)   // minimum across all colors for this label `i'
 			// non-missing
-			local diff = `min_nonmissing'-`i_min'-`eps'  // (for non-missing values) -3 is to avoid the labels
-			replace `ylo_uni'= `ylo_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' //move all values up
-			replace `yhi_uni'= `yhi_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' // non-missing 
-			// missing 
-			local diff = `lower'-`i_min'  //diff= lower limit - min value  (for missing values)
-			replace `ylo_uni'= `ylo_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]==`m_val' //move all values up
-			replace `yhi_uni'= `yhi_uni'+`diff' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]==`m_val' // missing 
+			local d = `min_nonmissing'-`i_min'  // (for non-missing values) 
+			replace `ylo_uni'= `ylo_uni'+`d' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' //move all values up
+			replace `yhi_uni'= `yhi_uni'+`d' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]!=`m_val' // non-missing 
+
+			if (`d'!=. & `label_coord'[`i',3]!=`m_val') { // non-missing, move connectors and unibars of low box
+				// y-coordinate for missing is 0; don't change if missing
+				replace `ystart'=`ystart'+`d' if  `ystart'==float(`label_coord'[`i',1]) & `x'==float(`label_coord'[`i',2])  // connectors x/y combination  
+				replace `yend'=`yend'+`d'     if  `yend'  ==float(`label_coord'[`i',1]) & `xlag'==float(`label_coord'[`i',2])  // connectors
+				matrix `label_coord'[`i',1]= `label_coord'[`i',1] +`d'   
+			}
 			
+			// missing 
+			local d = `lower'-`i_min'  //d= lower limit - min value  (for missing values)
+			replace `ylo_uni'= `ylo_uni'+`d' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]==`m_val' //move all values up
+			replace `yhi_uni'= `yhi_uni'+`d' if `index2' & `i_within_color'==`i' & `label_coord'[mod(_n-1,`n_lab')+1,3]==`m_val' // missing 			
+			if (`d'!=. & `label_coord'[`i',3]==`m_val') { // missing, move connectors of missing box
+				replace `ystart'=`ystart'+`d' if  `ystart'==float(`label_coord'[`i',1]) & `x'==float(`label_coord'[`i',2])  // connectors x/y combination  
+				replace `yend'=`yend'+`d'     if  `yend'  ==float(`label_coord'[`i',1]) & `xlag'==float(`label_coord'[`i',2])  // connectors
+			}
+
 		}
 	}
 end 
@@ -1746,6 +1777,8 @@ program transform_variable_range , rclass
 		// compress placements of values between 10 and 100 (i.e. `missing_fraction'*100 and 100)
 		qui replace `my_y' = (1-`missing_fraction') * (`my_y'-`min_nonmissing')/ `range' * 100 + `missing_fraction'*100  // standardize to min=missing_fraction*100, max=100 
 		if (`miss')  qui replace `my_y'=`missval' if `my_y'==.   
+		
+		//this next part is inside the variable loop but otherwise unconnected to the previous; could be a separate subroutine.
 		if (`addlabel'==1 | `adduni')  {
 			local n_labels = rowsof(`mat_label_coord') 
 			forval ii = 1 / `n_labels' {
@@ -1754,14 +1787,13 @@ program transform_variable_range , rclass
 						matrix `mat_label_coord'[`ii',1]= (1-`missing_fraction')*(`mat_label_coord'[`ii',1] -`min_nonmissing')/ `range'*100+ `missing_fraction'*100
 					}
 					else { //missing value
-						matrix `mat_label_coord'[`ii',1]= 0   // position of label for missing vals
+						matrix `mat_label_coord'[`ii',1]= `missval'   // position of label for missing vals
 					}
 				}
 			}
 		}
 		
 	}
-//matrix list `mat_label_coord'
 end
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Purpose : change position in label_coord by `eps' avoiding  0, (missing_fraction*100), and 100.
@@ -1844,15 +1876,15 @@ end
 program list_connectors
 	version 17.0
 	
-	syntax, xstart(str) xend(str) ystart(str) yend(str) ///
+	syntax, [ xstart(str) xend(str) ystart(str) yend(str) ///
 			width(str) ///
-			uni_ylo(str) uni_yhi(str) uni_x(str) uni_color(str)
+			uni_ylo(str) uni_yhi(str) uni_x(str) uni_color(str) ]
 	
 	label var `xstart' xstart
 	label var `xend'  xend
 	label var `ystart' ystart
 	label var `yend' yend
-	label var `width' width
+	label var `width' width  // if highlighting width will give an error because there are multiple vars
 	
 	label var `uni_ylo' uni_ylo 
 	label var `uni_yhi' uni_yhi
@@ -1932,3 +1964,4 @@ end
 //*! 2.1.2 	 May 12, 2025: fixed bug placing the highest label, added option unibar,fixed bug related to samescale
 //*! 2.1.3   June 1, 2025: recomputed xrange/yrange; stata bug resolved re `uni_color' during scatter
 //*! 2.1.4   June 4, 2025: fixed bugs: related to missings/string label format; related to space=0; added label_eps
+//*! 2.1.5   June 9, 2025: moved connectors of uppermost and lowermost boxes to middle of box

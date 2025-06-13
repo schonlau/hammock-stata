@@ -28,14 +28,14 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {synopt :{opt uni_colorlist(str)}} Default color and colors for highlighting for univariate bars {p_end}
 
 {syntab :Layout of univariate bars}
-{synopt :{opt nouni:bar}} Do not show value labels  {p_end}
+{synopt :{opt nouni:bar}} Do not show univariate bars {p_end}
 {synopt :{opt uni_fraction(real)}} For univariate bars, proportion of vertical space covered with bars {p_end}
 
 {syntab :Layout of labels}
 {synopt :{opt nolab:el}} Do not show value labels  {p_end}
 {synopt :{opt label_min_dist(real)}} Specify minimum distance between two labels on the same axis{p_end}
 {synopt :{opt labelopt(str)}} Pass options to {it:{help added_text_options}}, e.g. to manipulate label text size{p_end}
-{synopt :{opt label_format(str)}} (rarely needed) Display format of numerical labels {p_end}
+{synopt :{opt label_format(str)}} Display format of numerical labels {p_end}
 
 {syntab :Missing values}
 {synopt :{opt m:issing}} Show missing values {p_end}
@@ -44,7 +44,7 @@ help for {hi:hammock}{right:{hi: Matthias Schonlau}}
 {syntab :Layout of boxes in between axes}
 {synopt :{opt bar:width(real)}} Change width of the connecting boxes to reduce clutter {p_end}
 {synopt :{opt minbar:freq(int)}} Specify minimum box width {p_end}
-{synopt :{opt shape(str)}} Box shape: "parallelogram" or "rectangle" (default) {p_end}
+{synopt :{opt shape(str)}} Box shape: "parallelogram" (also "par") or "rectangle" (default) {p_end}
 {synopt :{opt outline}} (rarely needed) Outline the edges of semi-translucent connecting boxes {p_end}
 
 {syntab :Other options}
@@ -149,7 +149,7 @@ this is only relevant if the {it:hivar} is NOT part of {it:varlist}.
 {opt colorlist} specifies a list of colors to be used.  
 The first color in the list is the default color, the remainder is used for highlighting. 
 If unspecified, the color list is  
-"gs10 red  blue teal  yellow sand maroon orange olive magenta".
+"blue%50 orange%50 green red teal  yellow sand maroon olive".
 Color names are explained in {it:{help colorstyle}}.
 The color list should not be shorter than the number of values to be highlighted plus one (default color).
 
@@ -196,7 +196,7 @@ Specifying {it:label_min_dist(100)} will plot only the bottom and the top label.
 This option has no effect unless {it:label} is specified.
 
 {phang}
-{opt label_format(string)} (rarely used) For numerical labels, display format of the numerical value. 
+{opt label_format(string)}  For numerical labels, display format of the numerical value. 
 By default,   {it:label_format(%6.0g)}. 
 See {it:{ help format}} for other display formats.
 This option has no effect on string labels.
@@ -246,15 +246,17 @@ this option can be used to increase the space allocated to missing values and th
  
 {pmore}
  During highlighting, bars may consist of multiple segments with different colors. 
- In that case, {it:minbarfreq} is applied to each color segment separately.
+ In that case, {it:minbarfreq} is applied to each color segment separately.  
+ Currently, this option has no effect on the univariate bars.
 
 {phang}
 {opt shape} refers to the shape of the boxes or plotting elements. 
-The two options are "parallelogram" and "rectangle" (default).  Rectangles can look better for steep angles. 
+The two options are "parallelogram" (or "par" for short) and "rectangle" (default).  Rectangles can look better for steep angles. 
 They also avoid the so-called reverse line-width illusion of the parallelogram: 
 The vertical width of parallelogram-boxes with steep angles are larger than that of parallelogram-boxes with smaller angles. 
 Focusing on the end points of the boxes, can create the illusion that there are more observations in steep-angled parallelograms
 than there really are. 
+The main advantage of "parallelogram" is that the plot will render faster.
 
 {phang}
 {opt outline}  In Stata, translucent boxes (e.g. "red%50" , where the color is 50% translucent) 
