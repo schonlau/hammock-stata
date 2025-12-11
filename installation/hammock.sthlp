@@ -139,6 +139,7 @@ Note 2: It is possible to highlight strings of a string variable as long as the 
 hammock plot.  If you want to show the variable in the plot, 
 use {it:encode} to encode the variable as numerical with a string label.
 
+{pmore}
 Because variables in {it:varlist} must be numerical (with optional string labels), 
 this is only relevant if the {it:hivar} is NOT part of {it:varlist}.
 
@@ -149,8 +150,10 @@ this is only relevant if the {it:hivar} is NOT part of {it:varlist}.
 {opt colorlist} specifies a list of colors to be used.  
 The first color in the list is the default color, the remainder is used for highlighting. 
 If unspecified, the color list is  
-"blue%50 orange%50 green red teal  yellow sand maroon olive".
-Color names are explained in {it:{help colorstyle}}.
+"blue%50 orange%50 green red teal  yellow sand maroon olive". 
+Color names are explained in {it:{help colorstyle}}. 
+colorlists accepts RGB values as in colorlist(`" "127 201 127" "190 174 212" "253 192 134" "')
+ but note the needed space between the compound quote and the regular quotes.
 The color list should not be shorter than the number of values to be highlighted plus one (default color).
 
 {phang}

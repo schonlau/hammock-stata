@@ -1,5 +1,5 @@
 program define hammock
-*! 2.1.5   June 9, 2025: moved connectors of uppermost and lowermost boxes to middle of box
+*! 2.1.6   June 13, 2025: added: minbarfreq for univariate bars, compound quotes uni_colorlist
 	syntax varlist [if] [in], [ ///
 		Missing missing_fraction(real .1) ///
 		BARwidth(real 1) MINBARfreq(int 1) ///
@@ -112,7 +112,8 @@ program define hammock
 		list_labels `varlist', label_text(`label_text') missing(`missing')  ///
 			label_format(`"`label_format'"') missing_value(`missing_value')
 		matrix `label_coord'= r(label_coord)  // coordinates of all labels, Excluding missing values	
-		create_uni_matrix `varlist', ncolors(`ncolors') colorvar("colorgroup") missing(`missing') //univariate frequencies for each bar (separate by color)
+		create_uni_matrix `varlist', ncolors(`ncolors') colorvar("colorgroup") missing(`missing') ///
+			minbarfreq(`minbarfreq')		//univariate frequencies for each bar (separate by color)
 		matrix `uni_matrix' = r(uni_matrix)
 	}
 
@@ -227,11 +228,11 @@ program define hammock
 		// when plotting labels but not unibar, a long label does *not* distort xrange; longer labels are reach beyond axes
 	}
 
-	/*
+/*	
 	list_connectors,  xstart(`graphx') xend(`graphxlag') ystart(std_y) yend(`std_ylag') ///
 			width(`width') uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') ///
 			uni_color(`color_uni') 
-	*/
+*/
 	
 	if (`adduni') {
 		add_unibars `yhi_uni' `ylo_uni' `x_uni' `color_uni', mat_label_coord(`label_coord') ///
@@ -254,7 +255,6 @@ program define hammock
 //frame connectors: list _all
 //matrix list `label_coord'
 	}
-	
 
 	// compute ylabmin (midpoint-1/2 width) and ylabmax (midpoint+1/2 width)
 	// If y_std contains missing values they are coded 0, just like any other minimum value
@@ -299,7 +299,7 @@ program define hammock
 			 shape("`shape'") outline(`outline') ///
 			 options(`"`options'"') addlabeltext(`"`addlabeltext'"')  ///
 			 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
-			 uni_width(`uni_width') uni_colorlist(`uni_colorlist') ///
+			 uni_width(`uni_width') uni_colorlist(`"`uni_colorlist'"') ///
 			 showaxes(`showaxes')
 		// matrix `label_coord' is still around but not needed in GraphBoxColor 
 	}
@@ -311,7 +311,7 @@ program define hammock
 			  outline(`outline') ///
 			 options(`"`options'"') addlabeltext(`"`addlabeltext'"')  ///
 			 uni_ylo(`ylo_uni') uni_yhi(`yhi_uni') uni_x(`x_uni') uni_color(`color_uni') ///
-			 uni_width(`uni_width') uni_colorlist(`uni_colorlist')
+			 uni_width(`uni_width') uni_colorlist(`"`uni_colorlist'"')
 	}
 	
 	frame drop connectors
@@ -326,7 +326,7 @@ program plot_unibars
 		aspectratio(real)  ///
 		uni_ylo(str) uni_yhi(str)  uni_x(str) uni_color(str) uni_width(real) uni_colorlist(str) ///
 		[  colorlist(str) addlabeltext(str)  options(str)  ]
-	
+
 	// changes relative to other scatter: `addplot' contains the boxes and is removed; option `addlabeltext' is then moved elsewhere
 	twoway scatter std_y `graphx', ///
 		ylab(`ylabmin' `ylabmax')  xlab(`xlab_num',valuelabel noticks nogrid) ylab(,valuelabel noticks nogrid)      ///
@@ -779,9 +779,10 @@ end
 * on input: n_colors  : number of colors
 * on exit: uni_matrix: matrix with one row for each label/color combination with four columns:
 *		1 cum. proportion,  2 Variable index,  3  "." for the first label of a new variable, 4 color, 5 proportion by color
+*		if minbarfreq>1 proportions and cum proportions are increased
 program  create_uni_matrix, rclass
 	version 17
-	syntax varlist , ncolors(int) colorvar(str) missing(int)
+	syntax varlist , ncolors(int) colorvar(str) missing(int) minbarfreq(int)
 
 	tempname one_yfreq two_freq uni_matrix
 
@@ -812,18 +813,35 @@ program  create_uni_matrix, rclass
 		foreach v of var `varlist' { 
 			local i= `i'+1
 			
-			// cumulative frequencies/proportions
-			qui tab `v', matcell(`one_yfreq') `miss'	//mirrors tab,matrow in program list_labels
-														//Crucial, achieves the same order 
-			local one_sum=r(N)
-			local n_one_yfreq=r(r)   // if `missing', adds 1 only if this particular var has missing 
-			matrix `one_yfreq'=`one_yfreq'/`one_sum'   // turn frequencies to proportions 
-
+			
 			// frequencies/proportions by color
 			qui tab `v' `colorvar', matcell(`two_freq') `miss' //Crucial, achieves the same order
 			local one_sum=r(N) // probably redundant
-			matrix `two_freq'=`two_freq'/`one_sum' ///divide by total sum; because colors get separate space
+			if (`minbarfreq'>1){
+				local rows = rowsof(`two_freq')
+				local cols = colsof(`two_freq')
+				forvalues jj = 1/`rows' {
+					forvalues kk = 1/`cols' {
+						if (`two_freq'[`jj',`kk']!=0 & `two_freq'[`jj',`kk'] < `minbarfreq') {
+							local one_sum = `one_sum' + (`minbarfreq' - `two_freq'[`jj',`kk']) //increase
+							matrix `two_freq'[`jj',`kk'] = `minbarfreq'
+						}
+					}
+				}
+			}		
 
+			// cumulative frequencies/proportions; 
+			// sum across columns in matrix by creating a column vector of 1s
+			matrix `one_yfreq' = `two_freq' * J(colsof(`two_freq'), 1, 1)
+
+			// turn into proportions
+			matrix `two_freq'=`two_freq'/`one_sum' //divide by total sum; because colors get separate space	
+			matrix `one_yfreq'=`one_yfreq'/`one_sum'   // turn frequencies to proportions 
+
+			qui tab `v', `miss'					
+			local n_one_yfreq=r(r)   // if `missing', adds 1 only if this particular var has missing 	
+
+			// populate uni_matrix
 			forval  j = 1/`n_one_yfreq' {
 				local w=`one_yfreq'[`j',1]   // vector from one-way tab
 				local w2=`two_freq'[`j',`c'] // matrix from two-way tab
@@ -837,6 +855,8 @@ program  create_uni_matrix, rclass
 					matrix `uni_matrix'[`offset'+`j',3]=.
 				}
 			}
+			
+			
 			local offset=`offset'+`n_one_yfreq'
 		}
 	}
@@ -1304,7 +1324,7 @@ program define GraphBoxColor
 			plotregion(style(none) m(zero)) ///
 			aspect(`aspectratio') `options'  ///
 			||  `addplot'  `addlabeltext'  ///
-			|| rbar `uni_ylo' `uni_yhi' `uni_x',  barwidth(`uni_width') legend(off) ///
+			|| rbar `uni_ylo' `uni_yhi' `uni_x', barwidth(`uni_width') legend(off) ///
 				colorvar(`uni_color') colordiscrete colorlist(`uni_colorlist') clegend(off) 
 	}
 
@@ -1884,7 +1904,7 @@ program list_connectors
 	label var `xend'  xend
 	label var `ystart' ystart
 	label var `yend' yend
-	label var `width' width  // if highlighting width will give an error because there are multiple vars
+	//label var `width' width  // if highlighting width will give an error because there are multiple vars
 	
 	label var `uni_ylo' uni_ylo 
 	label var `uni_yhi' uni_yhi
@@ -1965,3 +1985,4 @@ end
 //*! 2.1.3   June 1, 2025: recomputed xrange/yrange; stata bug resolved re `uni_color' during scatter
 //*! 2.1.4   June 4, 2025: fixed bugs: related to missings/string label format; related to space=0; added label_eps
 //*! 2.1.5   June 9, 2025: moved connectors of uppermost and lowermost boxes to middle of box
+//*! 2.1.6   June 13, 2025: added minbarfreq for univariate bars, compound quotes uni_colorlist
